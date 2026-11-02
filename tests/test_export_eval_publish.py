@@ -1,5 +1,6 @@
 import json
 
+from akme.tools import export as export_tool, ontology_read
 from akme.tools.eval import check_assertion, evaluate
 from akme.tools.export import export
 from akme.tools.profile import profile
@@ -31,14 +32,14 @@ def test_structural_eval(seeded):
     assert not check_assertion(g, "Cliente pertenceA Pedido")[0]
     assert not check_assertion(g, "Pedido type Class extra")[0]
     result = evaluate(seeded)
-    assert result["summary"] == {"questions": 3, "structural_pass": 3, "structural_fail": 0}
+    assert result["summary"] == {"questions": 2, "structural_pass": 2, "structural_fail": 0}
 
 
 def test_eval_with_callable(seeded):
     def answer(question, context):
         return "use vl_total e categoria" if context else "nao sei"
     result = evaluate(seeded, answer)
-    assert result["summary"]["with_correct"] == 2 and result["summary"]["without_correct"] == 0
+    assert result["summary"]["with_correct"] == 1 and result["summary"]["without_correct"] == 0
 
 
 def test_publish_dry_run_targets(seeded):
@@ -53,3 +54,9 @@ def test_publish_dry_run_targets(seeded):
     assert "version: 0.2.0" in seeded.manifest_path.read_text(encoding="utf-8")
     r = publish(seeded, "rdf")
     assert r["materialized"] is False and (seeded.ontology_dir / "mappings.yarrrml.yml").exists()
+
+
+def test_read_and_export_expose_requirements(seeded):
+    assert {c["status"] for c in ontology_read.list_competency_questions(seeded, status="reserved")} == {"reserved"}
+    req = ontology_read.get_requirements(seeded); assert req["status"]["closed"] is True and req["data_request"][0]["id"] == "L-01"
+    data = export_tool.build_export(seeded); assert "pending" in data and data["requirements_status"]["closed"] is True
