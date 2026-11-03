@@ -58,6 +58,9 @@ Tools: `requirements_status`, `list_entities`, `list_relations`, `search_term`, 
 0. Chame `requirements_status`; se `closed` for falso, volte a etapa 1 e mostre `missing` ao humano. Enquanto estiver aberto e a ontologia nao tiver classe de dominio, `propose_edit` recusa classes, relacoes, termos, mappings, constraints e precedencias.
 1. Leia o modelo atual com `list_entities` e `list_relations` antes de propor qualquer coisa.
 2. A partir das CQs aprovadas e do `profile`, proponha classes (subclasses de `Entity`, `Metric`, `Rule` ou `Relation`), relacoes com domain, range e inversa, e termos ligados a cada classe. Associe cada proposta ao `requirement_id`.
+   - Toda relacao leva o contrato: `multiplicity` lida de domain para range (`many_to_one`, `one_to_many`, `one_to_one` ou `many_to_many`) e `join` com `from` (fonte e coluna do domain) e `to` (fonte e coluna do range), ex: `join: {from: {source: pedidos, column: id_cliente}, to: {source: clientes, column: id_cliente}}`. Relacao sem join fisico (conceitual ou via tabela ponte) leva `no_join_reason`. Nome de coluna igual nao prova join.
+   - `propose_edit` le o dado e grava em `observed` nulos, chaves repetidas, orfaos e a multiplicidade observada. Se o lado declarado `one` tiver chave repetida, a proposta e recusada; corrija a multiplicidade. So use `override_reason` quando o humano confirmar que o dado esta errado, nunca para destravar a proposta. Mostre `observed` ao humano junto com a proposta.
+   - Termo de classe `Metric` (ou subclasse) leva o contrato da medida: `unit` (BRL, unidades, %), `grain` (o que e uma linha, ex: um pedido) e `additivity` (`additive`, `semi_additive` com `non_additive_over`, ou `non_additive`). Quantidade, razao, media e taxa sao medidas diferentes; razao de totais nao e media de razoes.
 3. Quando a conceitualizacao estiver estavel, consulte `search_registry` para termos reutilizaveis na LOV. Compare definicao com definicao, nao nome com nome. Se nao houver rede, registre que o reuso ficou pendente.
 4. Sinalize termos ambiguos, sobreposicoes e CQs ainda sem classe que as atenda.
 
@@ -69,7 +72,7 @@ Saida: classes e relacoes em `schema.ttl`, termos em `content.yml`.
 
 Tools: `propose_edit` com `add_mapping`, `add_constraint`, `add_precedence`; `validate`; `apply_edit`.
 
-1. Para cada termo, proponha o mapping para `tabela.coluna` do `profile`. Metricas levam `role: metric` e `expression` SQL.
+1. Para cada termo, proponha o mapping para `tabela.coluna` do `profile`. Metricas levam `role: metric` e `expression` SQL explicita; nao existe `SUM` implicito. Uma metrica no grao da fonte do lado `one` de uma relacao nao pode ser somada depois de juntar com o lado `many` (fanout): o `publish` registra isso em `do_not_sum_after_join_with`.
 2. Proponha `add_constraint` para regras implicitas achadas nos documentos (ex: faturamento so com status FATURADO) e `add_precedence` quando duas fontes divergem sobre o mesmo conceito, dizendo qual prevalece e por que.
 3. Rode `validate`. Corrija o que for erro antes de pedir aprovacao.
 
@@ -93,7 +96,7 @@ Tools: `validate` (com `oops=true` quando houver rede), `eval`, `export`.
 Tools: `export`, `publish`.
 
 1. Rode `export` e aponte o humano para `docs/index.html` (grafo, termos, cobertura e pitfalls).
-2. Rode `publish --target <alvo>` em dry-run e mostre o artefato gerado (`docs/publish/`). Alvos: `snowflake` (semantic view e comments), `databricks` (comments do Unity Catalog), `yaml` (camada generica), `rdf` (YARRRML e, com o extra `rdf`, materializacao via Morph-KGC).
+2. Rode `publish --target <alvo>` em dry-run e mostre o artefato gerado (`docs/publish/`). Alvos: `snowflake` (semantic view com `PRIMARY KEY` e `RELATIONSHIPS` tirados dos contratos de relacao, e comments), `databricks` (comments do Unity Catalog), `yaml` (camada generica), `rdf` (YARRRML e, com o extra `rdf`, materializacao via Morph-KGC).
 3. Se o humano quiser versao nova, use `--release patch|minor|major`.
 4. Documentacao em HTML (Widoco) e checklist FAIR (FOOPS!) ficam fora do template; cite os comandos de `docs/research/oeg-upm.md` quando o cliente pedir.
 
@@ -147,6 +150,11 @@ Use o mesmo conteudo na `evidence` do `propose_edit` (ex: `{kind: source, path: 
 | `cq_agent_without_source_evidence` (error) | CQ proposta pelo agente sem item `kind: source` na `evidence` | Proponha a correcao com `path`, `locator` e `quote` da fonte |
 | `no_reserved_cq` (warning) | Nenhuma CQ `reserved` | Avise o humano: o eval nao testara pelo resultado |
 | `open_gap_or_divergence` (warning) | Lacuna ou divergencia com `decision: open` | Leve ao humano na aba Revisao |
+| `relation_without_contract` (warning) | Relacao sem `multiplicity` nem `join` (criada antes dos contratos) | Proponha a relacao de novo com o contrato |
+| `multiplicity_mismatch` (error; warning com `override_reason`) | O dado contradiz a multiplicidade declarada: lado `one` com chave repetida | Corrija a multiplicidade ou leve ao humano; nao publique com fanout escondido |
+| `join_broken` (error) | Fonte ou coluna do join sumiu | A fonte mudou; volte a etapa 3 |
+| `join_orphans` / `join_nulls` (warning) | Chaves do domain sem par no range, ou chave nula | Mostre os exemplos ao humano; podem ser dado sujo ou filtro de negocio |
+| `metric_without_contract` / `metric_without_expression` (error) | Metrica sem `unit`, `grain` ou `additivity`, ou mapping sem `expression` | Proponha o contrato completo; o `publish` recusa metrica sem expression |
 | `coverage` | Colunas do profile cobertas por mappings, por fonte, com a lista das nao cobertas | Colunas nao mapeadas sao candidatas a termo ou devem ser marcadas fora de escopo com o humano |
 | `pitfalls` | Subconjunto do catalogo OOPS! calculado localmente: P04 elemento desconectado, P08 sem label ou comment, P11 relacao sem domain ou range, P13 relacao sem inversa, P22 nome fora da convencao, P41 sem licenca | `important` corrige antes de publicar; `minor` registra e decide com o humano |
 | `oops` | Resultado do servico remoto quando `oops=true`; `available=false` quando o servico esta fora do ar | Nao bloqueie o fluxo por indisponibilidade; repita mais tarde |

@@ -187,7 +187,8 @@ O diagnóstico listou mais do que a etapa 1. Continuam em aberto, por ordem de p
 1. **Avaliação pelo resultado**: rodar as CQs reservadas contra os dados com gabarito SQL. Hoje o
    `eval` é estrutural.
 2. **Cobertura de CQs** no `validate`: quais CQs aprovadas ainda não têm classe, termo ou mapping.
-3. **Publicação Snowflake** com chaves primárias e `RELATIONSHIPS`; Databricks como metric view.
+3. **Databricks como metric view**. A publicação Snowflake já sai com chaves primárias e `RELATIONSHIPS`
+   a partir dos contratos de relação.
 4. **Edição e remoção** de classes, termos e mappings (hoje só CQs, lacunas e divergências têm
    `update`/`remove`).
 5. **Reuso com substância**: ler a definição do termo na LOV e registrar alinhamentos.

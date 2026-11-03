@@ -8,6 +8,20 @@ from ..ontology import classes, load_content, load_graph, load_manifest, relatio
 from ..project import Project, read_yaml, write_yaml
 
 
+_FLIP = {"many_to_one": "one_to_many", "one_to_many": "many_to_one"}
+
+
+def _inverse_contract(c: dict[str, Any]) -> dict[str, Any]:
+    """Contrato da inversa: mesma relacao lida de range para domain."""
+    out = {"relation": c["inverse_of"], "inverse_of_contract": c["relation"],
+           "multiplicity": _FLIP.get(c["multiplicity"], c["multiplicity"])}
+    if c.get("join"):
+        out["join"] = {"from": c["join"]["to"], "to": c["join"]["from"]}
+    if c.get("no_join_reason"):
+        out["no_join_reason"] = c["no_join_reason"]
+    return out
+
+
 def build_export(project: Project) -> dict[str, Any]:
     g = load_graph(project.schema_path)
     content = load_content(project)
@@ -27,12 +41,21 @@ def build_export(project: Project) -> dict[str, Any]:
             "pitfalls": validation.get("pitfalls", []),
             "findings": validation.get("findings", []),
         }
+    contracts = {c["relation"]: c for c in content["relation_contracts"]}
+    for c in content["relation_contracts"]:
+        if c.get("inverse_of") and c["inverse_of"] not in contracts:
+            contracts[c["inverse_of"]] = _inverse_contract(c)
+    rels = []
+    for r in relations(g):
+        c = contracts.get(r["name"])
+        rels.append(r | {"contract": {k: v for k, v in c.items() if k != "relation"}} if c else r)
     return {
         "project": project.name,
         "version": manifest.get("version", "0.0.0"),
         "base_iri": manifest.get("base_iri"),
         "classes": classes(g),
-        "relations": relations(g),
+        "relations": rels,
+        "relation_contracts": content["relation_contracts"],
         "terms": content["terms"],
         "mappings": content["mappings"],
         "constraints": content["constraints"],

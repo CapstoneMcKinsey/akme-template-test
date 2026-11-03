@@ -48,11 +48,12 @@ def _close_requirements(project):
 def test_class_and_relation_go_to_ttl(project):
     _close_requirements(project)
     with pytest.raises(EditError, match="nao encontradas"):
-        ontology_write.propose_edit(project, "add_relation", {"name": "temX", "domain": "Nada", "range": "Entity", "label": "x"})
+        ontology_write.propose_edit(project, "add_relation", {"name": "temX", "domain": "Nada", "range": "Entity", "label": "x", "multiplicity": "many_to_one"})
     c = ontology_write.propose_edit(project, "add_class", {"name": "Pedido", "label": "Pedido", "comment": "compra"})
     ontology_write.apply_edit(project, c.id, "maria")
     r = ontology_write.propose_edit(project, "add_relation", {"name": "pertenceA", "domain": "Pedido", "range": "Entity",
-                                                              "label": "pertence a", "inverse_of": "possui"})
+                                                              "label": "pertence a", "inverse_of": "possui",
+                                                              "multiplicity": "many_to_one", "no_join_reason": "conceitual"})
     ontology_write.apply_edit(project, r.id, "maria")
     g = load_graph(project.schema_path)
     assert "Pedido" in class_names(g)

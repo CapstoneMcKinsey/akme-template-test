@@ -640,18 +640,28 @@ function renderPanel() {
     <div class="panel-section"><h3>Termos e mappings</h3>
       ${terms.length ? terms.map((t) => `<div><div class="row"><span style="font-weight:600">${esc(t.name)}</span>${t.synonyms && t.synonyms.length ? `<span class="label tertiary">${esc(t.synonyms.join(", "))}</span>` : ""}</div>
         <div class="p secondary">${esc(t.definition)}</div>
-        <div class="chips" style="margin-top:4px">${mappingsOf(t.name).map((m) => `<span class="chip ${m.role === "metric" ? "high" : "alt"} mono" title="${esc(m.note || m.expression || "")}">${esc(m.source)}.${esc(m.column)}</span>`).join("") || '<span class="chip outline">sem mapping</span>'}</div></div>`).join("") : '<p class="p secondary">Nenhum termo ligado a esta classe.</p>'}
+        <div class="chips" style="margin-top:4px">${mappingsOf(t.name).map((m) => `<span class="chip ${m.role === "metric" ? "high" : "alt"} mono" title="${esc(m.note || m.expression || "")}">${esc(m.source)}.${esc(m.column)}</span>`).join("") || '<span class="chip outline">sem mapping</span>'}${t.unit ? `<span class="chip outline">${esc(t.unit)}</span><span class="chip outline">grao: ${esc(t.grain || "")}</span><span class="chip outline">${esc(t.additivity || "")}</span>` : ""}</div></div>`).join("") : '<p class="p secondary">Nenhum termo ligado a esta classe.</p>'}
     </div>
     <div class="panel-section"><h3>Hierarquia</h3>
       <div class="row"><span class="k">superclasse</span><span>${parentsOf(c.name).map(classLink).join(", ") || '<span class="tertiary">nenhuma</span>'}</span></div>
       <div class="row"><span class="k">subclasses</span><span>${childrenOf(c.name).map(classLink).join(", ") || '<span class="tertiary">nenhuma</span>'}</span></div>
     </div>
     <div class="panel-section"><h3>Relacoes</h3>
-      ${rels.length ? rels.map((r) => `<div class="rel-item"><span class="mono">${esc(r.name)}</span><span class="secondary">${r.domain.map(classLink).join(", ")} para ${r.range.map(classLink).join(", ")}</span></div>`).join("") : '<p class="p secondary">Nenhuma relacao.</p>'}
+      ${rels.length ? rels.map((r) => `<div class="rel-item"><span class="mono">${esc(r.name)}</span><span class="secondary">${r.domain.map(classLink).join(", ")} para ${r.range.map(classLink).join(", ")}</span>${relContract(r)}</div>`).join("") : '<p class="p secondary">Nenhuma relacao.</p>'}
     </div>
     ${cons.length ? `<div class="panel-section"><h3>Restricoes</h3>${cons.map((k) => `<div class="row"><span class="chip ${k.severity === "error" ? "error" : "warning"}">${esc(k.id || k.severity || "regra")}</span><span>${esc(k.rule)}</span></div>`).join("")}</div>` : ""}
     ${gl.length ? `<div class="panel-section"><h3>Glossario</h3>${gl.map((g) => `<div class="row"><span class="k mono">${esc(g.acronym)}</span><span>${esc(g.meaning)}${g.convention ? ` <span class="tertiary">(${esc(g.convention)})</span>` : ""}</span></div>`).join("")}</div>` : ""}
     ${prec.length ? `<div class="panel-section"><h3>Precedencia</h3>${prec.map((p) => `<div class="p"><b>${esc(p.topic)}</b>: ${esc(p.winner)} prevalece sobre ${esc(p.over)}.<span class="secondary"> ${esc(p.reason || "")}</span></div>`).join("")}</div>` : ""}`;
+}
+
+function relContract(r) {
+  const c = r.contract;
+  if (!c) return '<span class="chip outline">sem contrato</span>';
+  const join = c.join ? `${c.join.from.source}.${c.join.from.column} = ${c.join.to.source}.${c.join.to.column}` : (c.no_join_reason || "");
+  const inv = c.inverse_of_contract ? `<span class="chip outline">inversa de ${esc(c.inverse_of_contract)}</span>` : "";
+  const fan = c.observed && c.observed.fanout ? '<span class="chip warning">fanout</span>' : "";
+  const orph = c.observed && c.observed.orphans ? `<span class="chip warning">${c.observed.orphans} orfaos</span>` : "";
+  return `<span class="chips"><span class="chip alt mono">${esc(c.multiplicity)}</span><span class="chip outline mono">${esc(join)}</span>${inv}${fan}${orph}</span>`;
 }
 
 function classLink(name) {

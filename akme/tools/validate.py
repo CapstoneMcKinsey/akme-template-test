@@ -7,9 +7,11 @@ from typing import Any
 
 from rdflib import OWL, RDF, RDFS, Graph, Namespace, URIRef
 
-from ..models import Finding, ValidationReport
-from ..ontology import classes, has_license, load_content, local, relations
+from ..adapters import AdapterError
+from ..models import ADDITIVITY, METRIC_FIELDS, Finding, ValidationReport
+from ..ontology import classes, has_license, is_metric_class, load_content, local, relations
 from ..project import Project, read_yaml
+from .contracts import contradictions, observe_join
 from .profile import load_profile
 
 OOPS_REST = "https://oops.linkeddata.es/rest"
@@ -65,6 +67,65 @@ def _check_mappings(content: dict[str, Any], project: Project, findings: list[Fi
     done = sum(v["mapped"] for v in by_source.values())
     return {"available": True, "columns": total, "mapped": done,
             "ratio": round(done / total, 3) if total else 0.0, "by_source": by_source}
+
+
+def _check_relation_contracts(g: Graph, content: dict[str, Any], project: Project, findings: list[Finding],
+                              check_data: bool = True) -> None:
+    contracts = content["relation_contracts"]
+    covered = {c["relation"] for c in contracts} | {c.get("inverse_of") for c in contracts if c.get("inverse_of")}
+    for r in relations(g):
+        if r["name"] not in covered:
+            findings.append(Finding(level="warning", check="relation_without_contract", subject=r["name"],
+                                    message=f"relacao '{r['name']}' sem multiplicidade nem join declarados"))
+    for c in contracts:
+        if not c.get("join") or not check_data:
+            continue
+        try:
+            observed = observe_join(project, c["join"])
+        except AdapterError as exc:
+            findings.append(Finding(level="warning", check="join_check_unavailable", subject=c["relation"],
+                                    message=f"nao foi possivel ler o dado do join de '{c['relation']}': {exc}"))
+            continue
+        if not observed["available"]:
+            findings.append(Finding(level="error", check="join_broken", subject=c["relation"],
+                                    message=f"join de '{c['relation']}' quebrado: {observed['reason']}"))
+            continue
+        for problem in contradictions(c["multiplicity"], observed):
+            level = "warning" if c.get("override_reason") else "error"
+            findings.append(Finding(level=level, check="multiplicity_mismatch", subject=c["relation"],
+                                    message=f"'{c['relation']}' declarada {c['multiplicity']}, observada "
+                                            f"{observed['multiplicity']}: {problem}"))
+        if observed["orphans"]:
+            hint = " (amostra truncada: pode ser falso positivo)" if observed["truncated"] else ""
+            findings.append(Finding(level="warning", check="join_orphans", subject=c["relation"],
+                                    message=f"'{c['relation']}': {observed['orphans']} chaves de "
+                                            f"{c['join']['from']['source']}.{c['join']['from']['column']} sem par em "
+                                            f"{c['join']['to']['source']}, ex: {observed['orphan_examples']}{hint}"))
+        if observed["from"]["nulls"]:
+            findings.append(Finding(level="warning", check="join_nulls", subject=c["relation"],
+                                    message=f"'{c['relation']}': {observed['from']['nulls']} linhas com chave nula em "
+                                            f"{c['join']['from']['source']}.{c['join']['from']['column']}"))
+
+
+def _check_metrics(g: Graph, content: dict[str, Any], findings: list[Finding]) -> None:
+    by_term: dict[str, list[dict[str, Any]]] = {}
+    for m in content["mappings"]:
+        by_term.setdefault(m.get("term", ""), []).append(m)
+    for t in content["terms"]:
+        if not t.get("class") or not is_metric_class(g, t["class"]):
+            continue
+        name = t.get("name", "")
+        missing = [f for f in METRIC_FIELDS if not str(t.get(f) or "").strip()]
+        if missing:
+            findings.append(Finding(level="error", check="metric_without_contract", subject=name,
+                                    message=f"metrica '{name}' sem {', '.join(missing)}"))
+        elif t["additivity"] not in ADDITIVITY:
+            findings.append(Finding(level="error", check="metric_without_contract", subject=name,
+                                    message=f"metrica '{name}' com additivity invalida: {t['additivity']}"))
+        for m in by_term.get(name, []):
+            if not str(m.get("expression") or "").strip():
+                findings.append(Finding(level="error", check="metric_without_expression", subject=name,
+                                        message=f"mapping de '{name}' em {m.get('source')} sem expression"))
 
 
 def _check_precedence(content: dict[str, Any], findings: list[Finding]) -> None:
@@ -192,7 +253,7 @@ def oops_scan(ttl: str, timeout: int = 30) -> dict[str, Any]:
     return {"available": True, "pitfalls": pitfalls}
 
 
-def validate(project: Project, oops: bool = False) -> ValidationReport:
+def validate(project: Project, oops: bool = False, check_data: bool = True) -> ValidationReport:
     findings: list[Finding] = []
     content = load_content(project)
     g = _parse_ttl(project, findings)
@@ -201,6 +262,8 @@ def validate(project: Project, oops: bool = False) -> ValidationReport:
     if g is not None:
         _check_terms(content, {c["name"] for c in classes(g)}, findings)
         pitfalls = native_pitfalls(g)
+        _check_relation_contracts(g, content, project, findings, check_data)
+        _check_metrics(g, content, findings)
         if oops:
             oops_result = oops_scan(project.schema_path.read_text(encoding="utf-8"))
             pitfalls += oops_result.get("pitfalls", [])
