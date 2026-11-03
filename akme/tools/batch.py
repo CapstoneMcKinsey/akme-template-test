@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import contextlib
+import os
 import shutil
+import stat
+import sys
 import tempfile
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -43,14 +48,30 @@ def stage(project: Project) -> Project:
     return Project(tmp)
 
 
+def _clear_readonly(func: Callable[[str], Any], path: str, exc: BaseException) -> None:
+    """No Windows, os.rmdir/os.unlink dao WinError 5 em item com atributo somente-leitura
+    (copytree o propaga via copystat). Tira o atributo e tenta de novo; qualquer outro erro sobe."""
+    if not isinstance(exc, PermissionError) or os.stat(path).st_mode & stat.S_IWRITE:
+        raise exc
+    os.chmod(path, os.stat(path).st_mode | stat.S_IWRITE)
+    func(path)
+
+
+def _rmtree(path: Path) -> None:
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=_clear_readonly)
+    else:
+        shutil.rmtree(path, onerror=lambda func, p, info: _clear_readonly(func, p, info[1]))
+
+
 def promote(staging: Project, project: Project) -> None:
     """Substitui ontology_dir e questions do projeto pelos da copia e atualiza docs/validation.json."""
     target = project.ontology_dir
     incoming = target.with_name(target.name + ".akme-new")
     if incoming.exists():
-        shutil.rmtree(incoming)
+        _rmtree(incoming)
     shutil.copytree(staging.ontology_dir, incoming)
-    shutil.rmtree(target)
+    _rmtree(target)
     incoming.rename(target)
     if staging.questions_path.exists():
         project.questions_path.parent.mkdir(parents=True, exist_ok=True)
@@ -112,7 +133,8 @@ def apply_batch(project: Project, edit_ids: list[str], approved_by: str) -> dict
             raise BatchError("lote abortado, erros novos no validate", new_errors)
         promote(staging, project)
     finally:
-        shutil.rmtree(staging.root, ignore_errors=True)
+        with contextlib.suppress(OSError):  # limpeza do temporario nao deve encobrir o erro do lote
+            _rmtree(staging.root)
     return {
         "applied": [r for r in results if r.get("status") != "rejected"],
         "rejected": [r for r in results if r.get("status") == "rejected"],
