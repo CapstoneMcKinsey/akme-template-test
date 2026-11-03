@@ -6,12 +6,17 @@ from typing import Any
 
 import yaml
 
+from ..adapters import AdapterError
 from ..models import (
-    CONTENT_SECTION, CQ_STATUSES, CQ_TYPES, DIVERGENCE_DECISIONS, EVIDENCE_KINDS, GAP_DECISIONS,
-    ONTOLOGY_TYPES, PRIORITIES, REQUIRED_FIELDS, STAGE1_TYPES, Edit, EditType, Review, now_iso,
+    ADDITIVITY, CONTENT_SECTION, CQ_STATUSES, CQ_TYPES, DIVERGENCE_DECISIONS, EVIDENCE_KINDS, GAP_DECISIONS,
+    METRIC_FIELDS, MULTIPLICITIES, ONTOLOGY_TYPES, PRIORITIES, REQUIRED_FIELDS, STAGE1_TYPES, Edit, EditType,
+    Review, now_iso,
 )
-from ..ontology import add_class, add_relation, class_names, load_content, load_graph, save_content, save_graph
+from ..ontology import (
+    add_class, add_relation, class_names, is_metric_class, load_content, load_graph, save_content, save_graph,
+)
 from ..project import Project, read_yaml, write_yaml
+from .contracts import check_join_shape, contradictions, observe_join
 from .requirements import cq_references, mirror_reserved, next_id, requirements_status
 
 
@@ -126,6 +131,12 @@ def _validate_payload(project: Project, edit_type: EditType, payload: dict[str, 
             _check_fields(i, _DIVERGENCE_SOURCE_FIELDS, "sources")
         p.setdefault("decision", "open")
         _check_choice("decision", p["decision"], list(DIVERGENCE_DECISIONS))
+    elif edit_type == EditType.add_relation:
+        _check_relation_contract(project, p)
+    elif edit_type == EditType.add_term:
+        _check_metric_term(project, p)
+    elif edit_type == EditType.add_mapping:
+        _check_metric_mapping(project, p)
     elif edit_type in _LISTS:
         key, _ = _LISTS[edit_type]
         if p["id"] not in {i.get("id") for i in load_content(project)["requirements"][key]}:
@@ -144,6 +155,57 @@ def _validate_payload(project: Project, edit_type: EditType, payload: dict[str, 
         elif edit_type == EditType.update_divergence:
             _check_choice("decision", p["decision"], list(DIVERGENCE_DECISIONS))
     return p
+
+
+def _check_relation_contract(project: Project, p: dict[str, Any]) -> None:
+    """Multiplicidade lida de domain para range; join.from e a coluna do domain, join.to a do range."""
+    _check_choice("multiplicity", p["multiplicity"], list(MULTIPLICITIES))
+    join = p.get("join")
+    if not join:
+        if not str(p.get("no_join_reason") or "").strip():
+            raise EditError("add_relation exige join (from e to com source e column) ou no_join_reason")
+        return
+    problem = check_join_shape(join)
+    if problem:
+        raise EditError(problem)
+    try:
+        observed = observe_join(project, join)
+    except AdapterError as exc:
+        observed = {"available": False, "reason": str(exc)}
+    if not observed["available"] and observed["reason"].startswith(("fonte inexistente", "coluna inexistente")):
+        raise EditError(f"join invalido: {observed['reason']}")
+    found = contradictions(p["multiplicity"], observed)
+    if found and not str(p.get("override_reason") or "").strip():
+        raise EditError(f"multiplicity {p['multiplicity']} contradiz o dado (observado {observed['multiplicity']}): "
+                        + "; ".join(found) + ". Corrija a multiplicidade ou informe override_reason")
+    p["observed"] = observed
+
+
+def _term_is_metric(project: Project, cls: str | None) -> bool:
+    return bool(cls) and is_metric_class(load_graph(project.schema_path), str(cls))
+
+
+def _check_metric_term(project: Project, p: dict[str, Any]) -> None:
+    if not _term_is_metric(project, p.get("class")):
+        return
+    missing = [f for f in METRIC_FIELDS if not str(p.get(f) or "").strip()]
+    if missing:
+        raise EditError(f"termo de metrica exige o contrato: {', '.join(missing)}")
+    _check_choice("additivity", p["additivity"], list(ADDITIVITY))
+    if p["additivity"] == "semi_additive" and not p.get("non_additive_over"):
+        raise EditError("additivity semi_additive exige non_additive_over (dimensoes em que nao se soma, ex: [tempo])")
+
+
+def _check_metric_mapping(project: Project, p: dict[str, Any]) -> None:
+    term = next((t for t in load_content(project)["terms"] if t.get("name") == p["term"]), None)
+    metric = p.get("role") == "metric" or (term is not None and _term_is_metric(project, term.get("class")))
+    if not metric:
+        return
+    p.setdefault("role", "metric")
+    if p["role"] != "metric":
+        raise EditError(f"o termo {p['term']} e uma metrica; o mapping deve ter role metric")
+    if not str(p.get("expression") or "").strip():
+        raise EditError("mapping de metrica exige expression SQL explicita (sem SUM implicito)")
 
 
 def _check_graph_refs(project: Project, edit_type: EditType, payload: dict[str, Any]) -> None:
@@ -310,8 +372,14 @@ def apply_edit(project: Project, edit_id: str | None = None, approved_by: str = 
         save_graph(g, project.schema_path)
     elif edit.type == EditType.add_relation:
         g = load_graph(project.schema_path)
-        add_relation(g, p["name"], p["domain"], p["range"], p["label"], p.get("comment", ""), p.get("inverse_of"))
+        add_relation(g, p["name"], p["domain"], p["range"], p["label"], p.get("comment", ""), p.get("inverse_of"),
+                     p.get("multiplicity"))
         save_graph(g, project.schema_path)
+        content = load_content(project)
+        content["relation_contracts"].append({"relation": p["name"]} | {
+            k: p[k] for k in ("domain", "range", "inverse_of", "multiplicity", "join", "no_join_reason",
+                              "override_reason", "observed") if p.get(k) is not None})
+        save_content(project, content)
     entry = {
         "edit_id": edit.id, "type": edit.type.value, "proposed_by": edit.proposed_by,
         "approved_by": approved_by, "applied_at": now_iso(), "requirement_id": edit.requirement_id,

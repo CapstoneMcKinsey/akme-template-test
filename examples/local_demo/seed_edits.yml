@@ -132,6 +132,10 @@ edits:
       range: Cliente
       label: pertence a
       inverse_of: possuiPedido
+      multiplicity: many_to_one
+      join:
+        from: {source: pedidos, column: id_cliente}
+        to: {source: clientes, column: id_cliente}
     requirement_id: CQ-001
     evidence: pedidos.id_cliente referencia clientes.id_cliente
   - type: add_relation
@@ -141,6 +145,10 @@ edits:
       range: ItemPedido
       label: contem
       inverse_of: pertenceAoPedido
+      multiplicity: one_to_many
+      join:
+        from: {source: pedidos, column: id_pedido}
+        to: {source: itens_pedido, column: id_pedido}
     requirement_id: CQ-003
     evidence: itens_pedido.id_pedido referencia pedidos.id_pedido
   - type: add_relation
@@ -149,6 +157,10 @@ edits:
       domain: ItemPedido
       range: Produto
       label: referencia
+      multiplicity: many_to_one
+      join:
+        from: {source: itens_pedido, column: sku}
+        to: {source: produtos, column: sku}
     requirement_id: CQ-003
     evidence: itens_pedido.sku referencia produtos.sku
 
@@ -195,6 +207,9 @@ edits:
       name: faturamento
       class: Faturamento
       definition: Soma do valor total dos pedidos faturados.
+      unit: BRL
+      grain: um pedido
+      additivity: additive
     requirement_id: CQ-001
   - type: add_term
     payload:

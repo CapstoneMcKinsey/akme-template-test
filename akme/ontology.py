@@ -17,6 +17,7 @@ EMPTY_CONTENT: dict[str, Any] = {
     },
     "terms": [],
     "mappings": [],
+    "relation_contracts": [],
     "constraints": [],
     "glossary": [],
     "precedence": [],
@@ -87,6 +88,23 @@ def class_names(g: Graph) -> set[str]:
     return {c["name"] for c in classes(g)}
 
 
+def superclasses(g: Graph, name: str) -> set[str]:
+    ns = base_ns(g)
+    seen: set[str] = set()
+    stack = [ns[name]]
+    while stack:
+        for parent in g.objects(stack.pop(), RDFS.subClassOf):
+            label = local(parent)
+            if label not in seen:
+                seen.add(label)
+                stack.append(parent)
+    return seen
+
+
+def is_metric_class(g: Graph, name: str) -> bool:
+    return name == "Metric" or "Metric" in superclasses(g, name)
+
+
 def add_class(g: Graph, name: str, label: str, comment: str, subclass_of: str = "Entity") -> URIRef:
     ns = base_ns(g)
     c = ns[name]
@@ -98,10 +116,13 @@ def add_class(g: Graph, name: str, label: str, comment: str, subclass_of: str = 
 
 
 def add_relation(g: Graph, name: str, domain: str, range_: str, label: str,
-                 comment: str = "", inverse_of: str | None = None) -> URIRef:
+                 comment: str = "", inverse_of: str | None = None, multiplicity: str | None = None) -> URIRef:
     ns = base_ns(g)
     p = ns[name]
     g.add((p, RDF.type, OWL.ObjectProperty))
+    # "para um" do lado do range: cada instancia do domain liga a no maximo uma do range
+    if multiplicity in ("many_to_one", "one_to_one"):
+        g.add((p, RDF.type, OWL.FunctionalProperty))
     g.add((p, RDFS.domain, ns[domain]))
     g.add((p, RDFS.range, ns[range_]))
     g.add((p, RDFS.label, Literal(label, lang="pt")))
@@ -116,6 +137,8 @@ def add_relation(g: Graph, name: str, domain: str, range_: str, label: str,
             g.add((inv, RDFS.label, Literal(inverse_of, lang="pt")))
         g.add((p, OWL.inverseOf, inv))
         g.add((inv, OWL.inverseOf, p))
+        if multiplicity in ("one_to_many", "one_to_one"):
+            g.add((inv, RDF.type, OWL.FunctionalProperty))
     return p
 
 

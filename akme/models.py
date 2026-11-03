@@ -34,6 +34,11 @@ GAP_DECISIONS = ("request_from_client", "reformulate", "drop", "open")
 DIVERGENCE_DECISIONS = ("precedence", "distinct_terms", "ask_expert", "dismiss", "open")
 EVIDENCE_KINDS = ("source", "conversation")
 
+# Contratos de relacao e metrica. Multiplicidade lida de domain para range.
+MULTIPLICITIES = ("many_to_one", "one_to_many", "one_to_one", "many_to_many")
+ADDITIVITY = ("additive", "semi_additive", "non_additive")
+METRIC_FIELDS = ("unit", "grain", "additivity")
+
 # Tipos da etapa 1 (requisitos) e da etapa 2 (ontologia)
 STAGE1_TYPES = frozenset({
     EditType.add_use_case, EditType.update_competency_question, EditType.remove_competency_question,
@@ -61,7 +66,7 @@ REQUIRED_FIELDS: dict[EditType, list[str]] = {
     EditType.add_glossary: ["acronym", "meaning"],
     EditType.add_precedence: ["topic", "winner", "over"],
     EditType.add_class: ["name", "label", "comment"],
-    EditType.add_relation: ["name", "domain", "range", "label"],
+    EditType.add_relation: ["name", "domain", "range", "label", "multiplicity"],
     EditType.add_competency_question: ["question", "type", "concepts", "evidence"],
     EditType.add_requirement: ["field", "value"],
     EditType.add_use_case: ["name", "description"],

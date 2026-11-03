@@ -6,8 +6,9 @@ import yaml
 
 from ..adapters import load_adapter
 from ..models import now_iso
-from ..ontology import load_content, load_manifest, save_manifest
+from ..ontology import is_metric_class, load_content, load_graph, load_manifest, save_manifest
 from ..project import Project, read_yaml, write_yaml
+from .contracts import fanout_sources
 from .export import build_export, to_yarrrml
 
 TARGETS = ("yaml", "snowflake", "databricks", "rdf")
@@ -17,21 +18,61 @@ def _q(text: str) -> str:
     return (text or "").replace("'", "''")
 
 
+class PublishError(ValueError):
+    pass
+
+
+def _relationships(contracts: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, str], list[str]]:
+    """Relacoes com join viram (filho -> pai); o lado one vira chave primaria do pai. many_to_many fica de fora."""
+    rels, keys, skipped = [], {}, []
+    for c in contracts:
+        join, mult = c.get("join"), c.get("multiplicity")
+        if not join or mult == "many_to_many":
+            skipped.append(c["relation"])
+            continue
+        child, parent = (join["to"], join["from"]) if mult == "one_to_many" else (join["from"], join["to"])
+        if keys.setdefault(parent["source"], parent["column"]) != parent["column"]:
+            skipped.append(c["relation"])
+            continue
+        rels.append({"name": c["relation"], "multiplicity": mult, "from_source": child["source"],
+                     "from_column": child["column"], "to_source": parent["source"], "to_column": parent["column"]})
+    return rels, keys, skipped
+
+
 def semantic_model(project: Project) -> dict[str, Any]:
     data = build_export(project)
+    g = load_graph(project.schema_path)
     terms = {t["name"]: t for t in data["terms"]}
+    contracts = data["relation_contracts"]
     by_source: dict[str, dict[str, Any]] = {}
+
+    def source(name: str) -> dict[str, Any]:
+        return by_source.setdefault(name, {"name": name, "primary_key": None, "columns": [], "metrics": []})
+
+    no_expression = []
     for m in data["mappings"]:
         t = terms.get(m["term"], {})
-        src = by_source.setdefault(m["source"], {"name": m["source"], "columns": [], "metrics": []})
+        src = source(m["source"])
         col = {"column": m["column"], "term": m["term"], "class": t.get("class"), "definition": t.get("definition", "")}
-        if t.get("class") == "Metric" or m.get("role") == "metric":
-            col["expression"] = m.get("expression", f"SUM({m['column']})")
+        if m.get("role") == "metric" or (t.get("class") and is_metric_class(g, t["class"])):
+            if not str(m.get("expression") or "").strip():
+                no_expression.append(m["term"])
+                continue
+            col |= {"expression": m["expression"]} | {k: t[k] for k in ("unit", "grain", "additivity", "non_additive_over") if t.get(k)}
+            col["do_not_sum_after_join_with"] = fanout_sources(contracts, m["source"])
             src["metrics"].append(col)
         else:
             src["columns"].append(col)
+    if no_expression:
+        raise PublishError("metricas sem expression no mapping: " + ", ".join(no_expression) + ". Rode akme validate")
+    rels, keys, skipped = _relationships(contracts)
+    for r in rels:
+        source(r["from_source"]), source(r["to_source"])
+    for name, column in keys.items():
+        source(name)["primary_key"] = column
     return {
         "project": data["project"], "version": data["version"], "sources": list(by_source.values()),
+        "relationships": rels, "relationships_not_published": skipped,
         "relations": data["relations"], "glossary": data["glossary"], "precedence": data["precedence"],
         "examples": [c for c in data["requirements"]["competency_questions"] if c.get("status") == "approved"],
     }
@@ -41,20 +82,37 @@ def render_yaml(model: dict[str, Any]) -> str:
     return yaml.safe_dump(model, allow_unicode=True, sort_keys=False)
 
 
+_ADDITIVITY_PT = {"additive": "aditiva", "semi_additive": "semiaditiva", "non_additive": "nao aditiva"}
+
+
+def _metric_comment(c: dict[str, Any]) -> str:
+    parts = [f"unidade {c['unit']}" if c.get("unit") else "", f"grao {c['grain']}" if c.get("grain") else "",
+             _ADDITIVITY_PT.get(c.get("additivity", ""), "")]
+    if c.get("do_not_sum_after_join_with"):
+        parts.append("nao somar apos join com " + ", ".join(c["do_not_sum_after_join_with"]))
+    extra = "; ".join(p for p in parts if p)
+    return f"{c['definition']} [{extra}]" if extra else c["definition"]
+
+
 def render_snowflake(model: dict[str, Any], project: Project) -> list[str]:
     opts = project.adapter_options()
     db, schema = opts.get("database", "DB"), opts.get("schema", "PUBLIC")
     name = f"{db}.{schema}.{model['project'].upper()}_SEMANTIC"
-    tables, dims, metrics, comments = [], [], [], []
+    tables, rels, dims, metrics, comments = [], [], [], [], []
     for s in model["sources"]:
         fq = f"{db}.{schema}.{s['name']}"
-        tables.append(f"    {s['name']} AS {fq}")
+        pk = f" PRIMARY KEY ({s['primary_key']})" if s.get("primary_key") else ""
+        tables.append(f"    {s['name']} AS {fq}{pk}")
         for c in s["columns"]:
-            dims.append(f"    {s['name']}.{c['term']} AS {c['column']} COMMENT '{_q(c['definition'])}'")
+            dims.append(f"    {s['name']}.{c['term']} AS {c['column']} COMMENT = '{_q(c['definition'])}'")
             comments.append(f"COMMENT ON COLUMN {fq}.{c['column']} IS '{_q(c['definition'])}';")
         for c in s["metrics"]:
-            metrics.append(f"    {s['name']}.{c['term']} AS {c['expression']} COMMENT '{_q(c['definition'])}'")
+            metrics.append(f"    {s['name']}.{c['term']} AS {c['expression']} COMMENT = '{_q(_metric_comment(c))}'")
+    for r in model.get("relationships", []):
+        rels.append(f"    {r['name']} AS {r['from_source']} ({r['from_column']}) REFERENCES {r['to_source']} ({r['to_column']})")
     stmt = [f"CREATE OR REPLACE SEMANTIC VIEW {name}", "  TABLES (", ",\n".join(tables), "  )"]
+    if rels:
+        stmt += ["  RELATIONSHIPS (", ",\n".join(rels), "  )"]
     if dims:
         stmt += ["  DIMENSIONS (", ",\n".join(dims), "  )"]
     if metrics:
@@ -119,6 +177,8 @@ def bump_version(project: Project, part: str) -> str:
 def publish(project: Project, target: str = "yaml", dry_run: bool = True, release: str | None = None) -> dict[str, Any]:
     if target not in TARGETS:
         raise ValueError(f"target desconhecido: {target}. Opcoes: {', '.join(TARGETS)}")
+    if target != "rdf":
+        semantic_model(project)  # falha antes do bump se faltar contrato de metrica
     if release:
         bump_version(project, release)
     out_dir = project.docs_dir / "publish"

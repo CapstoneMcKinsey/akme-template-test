@@ -27,7 +27,7 @@ tools:
     output_format: json
 
   - name: ontology_write
-    description: propose_edit grava em pending/; apply_edit aplica; reject_edit descarta. Tipos add_term, add_mapping, add_constraint, add_glossary, add_precedence, add_class, add_relation, add_competency_question, update_competency_question, remove_competency_question, add_requirement, add_use_case, add_gap, add_divergence, update_gap, update_divergence. Classes, relacoes, termos, mappings, constraints e precedencias sao recusados enquanto os requisitos nao estiverem fechados.
+    description: propose_edit grava em pending/; apply_edit aplica; reject_edit descarta. Tipos add_term, add_mapping, add_constraint, add_glossary, add_precedence, add_class, add_relation, add_competency_question, update_competency_question, remove_competency_question, add_requirement, add_use_case, add_gap, add_divergence, update_gap, update_divergence. Classes, relacoes, termos, mappings, constraints e precedencias sao recusados enquanto os requisitos nao estiverem fechados. add_relation exige multiplicity e join (ou no_join_reason) e confere no dado; termos de Metric exigem unit, grain e additivity; mappings de metrica exigem expression.
     when: Etapas Especificar, Conceitualizar, Codificar e Manter. apply_edit so apos aprovacao humana explicita.
     requires_approval: true
     runs_before: [validate]
