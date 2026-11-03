@@ -105,3 +105,13 @@ def test_evidence_items_need_content(project):
         ontology_write.propose_edit(project, "add_competency_question", CQ | {"evidence": [{"kind": "conversation", "who": "a"}]}, proposed_by="ana")
     with pytest.raises(EditError, match="quote"):
         ontology_write.propose_edit(project, "add_divergence", {"topic": "t", "sources": [{"label": "A", "path": "a", "locator": "1"}, {"label": "B", "path": "b", "locator": "2", "quote": "y"}]})
+
+
+@pytest.mark.skipif(__import__("sys").platform != "win32", reason="atributo somente-leitura de diretorio e do Windows")
+def test_apply_reviewed_promotes_over_readonly_pending_dir(project):
+    import os, stat
+    os.chmod(project.pending_dir, stat.S_IREAD)  # attrib +R, como num checkout que herdou o atributo
+    e = ontology_write.propose_edit(project, "add_competency_question", CQ)
+    ontology_write.review_edit(project, e.id, "accept", "ana", edits={"priority": "low"})
+    out = ontology_write.apply_reviewed(project, "ana")
+    assert out["summary"]["cqs_accepted"] == 1 and ontology_write.list_pending(project) == []
