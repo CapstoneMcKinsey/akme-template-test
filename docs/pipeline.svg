@@ -1,0 +1,224 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 800" width="1400" height="800" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <title>Pipeline do akme-template</title>
+  <desc>Fontes do cliente, preparação, seis etapas LOT + NeOn, ciclo de revisão humana e alvos de publicação.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f8f8f9; }
+      .card { fill: #ffffff; stroke: rgba(28,30,42,0.16); stroke-width: 1; }
+      .band { fill: rgba(28,30,42,0.04); stroke: rgba(28,30,42,0.16); stroke-width: 1; stroke-dasharray: 4 4; }
+      .human { fill: #ffffff; stroke: #1f9fe0; stroke-width: 1.6; }
+      .chip { fill: rgba(28,30,42,0.06); }
+      .h1 { font-size: 24px; font-weight: 700; fill: rgba(28,30,42,0.92); }
+      .sub { font-size: 13px; fill: rgba(28,30,42,0.6); }
+      .t { font-size: 14px; font-weight: 600; fill: rgba(28,30,42,0.9); }
+      .ts { font-size: 13px; font-weight: 600; fill: rgba(28,30,42,0.9); }
+      .p { font-size: 12px; fill: rgba(28,30,42,0.78); }
+      .s { font-size: 11px; fill: rgba(28,30,42,0.55); }
+      .m { font-family: 'Roboto Mono', ui-monospace, Consolas, monospace; font-size: 10.5px; fill: rgba(28,30,42,0.82); }
+      .acc { fill: #0b7cc0; }
+      .num { font-size: 12px; font-weight: 700; fill: #ffffff; }
+      .flow { fill: none; stroke: rgba(28,30,42,0.55); stroke-width: 1.4; }
+      .back { fill: none; stroke: rgba(28,30,42,0.45); stroke-width: 1.3; stroke-dasharray: 5 4; }
+      .hflow { fill: none; stroke: #1f9fe0; stroke-width: 1.4; }
+      .div { stroke: rgba(28,30,42,0.10); stroke-width: 1; }
+    </style>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="rgba(28,30,42,0.6)"/>
+    </marker>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#1f9fe0"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1400" height="800"/>
+
+  <!-- Cabeçalho -->
+  <text class="h1" x="55" y="58">Pipeline do akme-template</text>
+  <text class="sub" x="55" y="82">Dos dados do cliente à camada semântica publicada · LOT + NeOn com humano no loop</text>
+
+  <!-- Entrada: fontes -->
+  <rect class="card" x="55" y="110" width="410" height="110" rx="10"/>
+  <text class="t" x="75" y="136">Fontes do cliente</text>
+  <rect class="chip" x="75" y="150" width="128" height="26" rx="6"/><text class="m" x="85" y="167">data/ local_folder</text>
+  <rect class="chip" x="211" y="150" width="70" height="26" rx="6"/><text class="m" x="221" y="167">postgres</text>
+  <rect class="chip" x="289" y="150" width="76" height="26" rx="6"/><text class="m" x="299" y="167">snowflake</text>
+  <rect class="chip" x="373" y="150" width="76" height="26" rx="6"/><text class="m" x="381" y="167">databricks</text>
+  <text class="s" x="75" y="200">csv · xlsx (cada aba vira fonte) · md · txt · pdf · docx · pptx</text>
+
+  <path class="flow" d="M467 165 H511" marker-end="url(#a)"/>
+
+  <!-- Entrada: preparação -->
+  <rect class="card" x="515" y="110" width="410" height="110" rx="10"/>
+  <text class="t" x="535" y="136">Preparação</text>
+  <text class="m" x="535" y="166">akme init  →  akme connect  →  akme profile</text>
+  <text class="s" x="535" y="190">lê esquema e amostras; perfil em docs/profile.json</text>
+  <text class="s" x="535" y="207">siglas, nulos e chaves viram evidência</text>
+
+  <!-- Quem faz o quê / legenda -->
+  <rect class="card" x="975" y="110" width="366" height="110" rx="10"/>
+  <text class="t" x="995" y="136">Quem faz o quê</text>
+  <text class="p" x="995" y="158">Agente (SKILL.md + MCP akme serve) propõe</text>
+  <text class="p" x="995" y="176">Consultor decide na página e aplica com o nome</text>
+  <path class="flow" d="M995 200 H1025" marker-end="url(#a)"/><text class="s" x="1031" y="204">fluxo</text>
+  <path class="back" d="M1075 200 H1105" marker-end="url(#a)"/><text class="s" x="1111" y="204">volta</text>
+  <rect class="human" x="1155" y="193" width="22" height="14" rx="3"/><text class="s" x="1183" y="204">decisão humana</text>
+
+  <!-- Preparação → etapa 1 -->
+  <path class="flow" d="M720 220 V240 H110 V286" marker-end="url(#a)"/>
+
+  <!-- Voltas da etapa 6 (acima) -->
+  <path class="back" d="M1225 290 V263 Q1225 255 1217 255 H198 Q190 255 190 263 V286" marker-end="url(#a)"/>
+  <text class="s" x="905" y="250">requisito novo: volta à 1</text>
+  <path class="back" d="M1200 290 V283 Q1200 275 1192 275 H617 Q609 275 609 283 V286" marker-end="url(#a)"/>
+  <text class="s" x="905" y="270">bug: volta à 3</text>
+
+  <!-- Seis etapas -->
+  <g>
+    <rect class="card" x="55" y="290" width="196" height="150" rx="10"/>
+    <circle cx="77" cy="316" r="12" fill="#16181f"/><text class="num" x="77" y="320" text-anchor="middle">1</text>
+    <text class="t" x="97" y="321">Especificar</text>
+    <text class="s" x="69" y="341">LOT · especificação</text>
+    <line class="div" x1="69" y1="352" x2="237" y2="352"/>
+    <text class="p" x="69" y="372">caso de uso e CQs</text>
+    <text class="p" x="69" y="389">lacunas e divergências</text>
+    <text class="p" x="69" y="406">glossário de siglas</text>
+    <text class="p" x="69" y="423">fecha: requisitos <tspan class="acc">closed</tspan></text>
+  </g>
+  <path class="flow" d="M253 365 H269" marker-end="url(#a)"/>
+  <g>
+    <rect class="card" x="273" y="290" width="196" height="150" rx="10"/>
+    <circle cx="295" cy="316" r="12" fill="#16181f"/><text class="num" x="295" y="320" text-anchor="middle">2</text>
+    <text class="t" x="315" y="321">Conceitualizar</text>
+    <text class="s" x="287" y="341">LOT · conceitualização e reuso</text>
+    <line class="div" x1="287" y1="352" x2="455" y2="352"/>
+    <text class="p" x="287" y="372">classes e relações</text>
+    <text class="p" x="287" y="389">join + multiplicidade</text>
+    <text class="p" x="287" y="406">termos e métricas</text>
+    <text class="p" x="287" y="423">reuso pela LOV</text>
+  </g>
+  <path class="flow" d="M471 365 H487" marker-end="url(#a)"/>
+  <g>
+    <rect class="card" x="491" y="290" width="196" height="150" rx="10"/>
+    <circle cx="513" cy="316" r="12" fill="#16181f"/><text class="num" x="513" y="320" text-anchor="middle">3</text>
+    <text class="t" x="533" y="321">Codificar</text>
+    <text class="s" x="505" y="341">LOT · codificação</text>
+    <line class="div" x1="505" y1="352" x2="673" y2="352"/>
+    <text class="p" x="505" y="372">mappings tabela.coluna</text>
+    <text class="p" x="505" y="389">restrições</text>
+    <text class="p" x="505" y="406">precedência de fontes</text>
+    <text class="p" x="505" y="423">validate sem erro</text>
+  </g>
+  <path class="flow" d="M689 365 H705" marker-end="url(#a)"/>
+  <g>
+    <rect class="card" x="709" y="290" width="196" height="150" rx="10"/>
+    <circle cx="731" cy="316" r="12" fill="#16181f"/><text class="num" x="731" y="320" text-anchor="middle">4</text>
+    <text class="t" x="751" y="321">Avaliar</text>
+    <text class="s" x="723" y="341">LOT · avaliação</text>
+    <line class="div" x1="723" y1="352" x2="891" y2="352"/>
+    <text class="p" x="723" y="372">validate (+ OOPS!)</text>
+    <text class="p" x="723" y="389">eval com CQs reservadas</text>
+    <text class="p" x="723" y="406">correções viram propostas</text>
+    <text class="p" x="723" y="423">humano decide seguir</text>
+  </g>
+  <path class="flow" d="M907 365 H923" marker-end="url(#a)"/>
+  <g>
+    <rect class="card" x="927" y="290" width="196" height="150" rx="10"/>
+    <circle cx="949" cy="316" r="12" fill="#16181f"/><text class="num" x="949" y="320" text-anchor="middle">5</text>
+    <text class="t" x="969" y="321">Publicar</text>
+    <text class="s" x="941" y="341">LOT · publicação</text>
+    <line class="div" x1="941" y1="352" x2="1109" y2="352"/>
+    <text class="p" x="941" y="372">export para docs/</text>
+    <text class="p" x="941" y="389">aba Ontologia da página</text>
+    <text class="p" x="941" y="406">publish em dry-run</text>
+    <text class="p" x="941" y="423">release patch|minor|major</text>
+  </g>
+  <path class="flow" d="M1125 365 H1141" marker-end="url(#a)"/>
+  <g>
+    <rect class="card" x="1145" y="290" width="196" height="150" rx="10"/>
+    <circle cx="1167" cy="316" r="12" fill="#16181f"/><text class="num" x="1167" y="320" text-anchor="middle">6</text>
+    <text class="t" x="1187" y="321">Manter</text>
+    <text class="s" x="1159" y="341">LOT · manutenção</text>
+    <line class="div" x1="1159" y1="352" x2="1327" y2="352"/>
+    <text class="p" x="1159" y="372">toda mudança tem registro</text>
+    <text class="p" x="1159" y="389">issue ou CQ nova</text>
+    <text class="p" x="1159" y="406">fonte mudou: novo profile</text>
+    <text class="p" x="1159" y="423">impacto em CQs e mappings</text>
+  </g>
+
+  <!-- Voltas da etapa 4 (abaixo) -->
+  <path class="back" d="M780 440 V462 Q780 470 772 470 H617 Q609 470 609 462 V444" marker-end="url(#a)"/>
+  <path class="back" d="M800 440 V480 Q800 488 792 488 H399 Q391 488 391 480 V444" marker-end="url(#a)"/>
+  <text class="s" x="815" y="470">decisão humana:</text>
+  <text class="s" x="815" y="484">voltar à 2 ou 3</text>
+
+  <!-- Chave das etapas 1–3 → ciclo de revisão -->
+  <path class="hflow" d="M55 500 Q55 510 65 510 H361 Q371 510 371 520 Q371 510 381 510 H677 Q687 510 687 500"/>
+  <path class="hflow" d="M371 520 V536" marker-end="url(#ah)"/>
+
+  <!-- Ciclo de revisão humana -->
+  <rect class="band" x="55" y="540" width="850" height="230" rx="12"/>
+  <text class="t" x="75" y="568">Humano no loop · paradas "Pare e pergunte" das etapas 1, 2 e 3</text>
+
+  <rect class="card" x="75" y="590" width="146" height="100" rx="8"/>
+  <text class="ts" x="89" y="614">Agente propõe</text>
+  <text class="m" x="89" y="636">propose_edit</text>
+  <text class="s" x="89" y="656">com evidência e o</text>
+  <text class="s" x="89" y="671">que o dado mostra</text>
+  <path class="flow" d="M223 640 H237" marker-end="url(#a)"/>
+
+  <rect class="card" x="241" y="590" width="146" height="100" rx="8"/>
+  <text class="ts" x="255" y="614">Pendentes</text>
+  <text class="m" x="255" y="636">ontology/pending/</text>
+  <text class="s" x="255" y="656">nada aplicado</text>
+  <text class="s" x="255" y="671">ainda</text>
+  <path class="flow" d="M389 640 H403" marker-end="url(#a)"/>
+
+  <rect class="human" x="407" y="590" width="146" height="100" rx="8"/>
+  <text class="ts" x="421" y="614">Página de revisão</text>
+  <text class="m" x="421" y="636">127.0.0.1:8765</text>
+  <text class="s" x="421" y="656">aceitar, ajustar</text>
+  <text class="s" x="421" y="671">ou rejeitar</text>
+  <path class="hflow" d="M555 640 H569" marker-end="url(#ah)"/>
+
+  <rect class="human" x="573" y="590" width="146" height="100" rx="8"/>
+  <text class="ts" x="587" y="614">Aplicar</text>
+  <text class="m" x="587" y="636">apply_reviewed</text>
+  <text class="m" x="587" y="652">--approved-by NOME</text>
+  <text class="s" x="587" y="671">ou botão na página</text>
+  <path class="flow" d="M721 640 H735" marker-end="url(#a)"/>
+
+  <rect class="card" x="739" y="590" width="146" height="100" rx="8"/>
+  <text class="ts" x="753" y="614">Ontologia em texto</text>
+  <text class="m" x="753" y="636">schema.ttl</text>
+  <text class="m" x="753" y="652">content.yml</text>
+  <text class="m" x="753" y="668">changelog.yml</text>
+
+  <path class="back" d="M812 690 V718 H148 V694" marker-end="url(#a)"/>
+  <rect x="330" y="710" width="296" height="16" fill="#f3f3f5"/>
+  <text class="s" x="478" y="722" text-anchor="middle">próxima rodada · a página atualiza sozinha</text>
+  <text class="s" x="75" y="752">Nada entra na ontologia antes de aprovado, com o nome de quem aprovou.</text>
+
+  <!-- Etapa 5 → alvos -->
+  <path class="flow" d="M1025 440 V536" marker-end="url(#a)"/>
+
+  <!-- Alvos de publicação -->
+  <rect class="card" x="927" y="540" width="414" height="230" rx="12"/>
+  <text class="t" x="947" y="568">Alvos de publicação</text>
+  <text class="m" x="947" y="588">akme publish --target &lt;alvo&gt; → docs/publish/</text>
+
+  <rect class="chip" x="947" y="602" width="182" height="54" rx="8"/>
+  <text class="ts" x="961" y="625">snowflake</text>
+  <text class="s" x="961" y="643">semantic view + relações</text>
+  <rect class="chip" x="1139" y="602" width="182" height="54" rx="8"/>
+  <text class="ts" x="1153" y="625">databricks</text>
+  <text class="s" x="1153" y="643">comments no Unity Catalog</text>
+  <rect class="chip" x="947" y="666" width="182" height="54" rx="8"/>
+  <text class="ts" x="961" y="689">yaml</text>
+  <text class="s" x="961" y="707">camada semântica genérica</text>
+  <rect class="chip" x="1139" y="666" width="182" height="54" rx="8"/>
+  <text class="ts" x="1153" y="689">rdf</text>
+  <text class="s" x="1153" y="707">YARRRML · Morph-KGC</text>
+
+  <rect class="human" x="947" y="734" width="14" height="14" rx="3"/>
+  <text class="s" x="969" y="745">dry-run por padrão; --no-dry-run só com confirmação</text>
+</svg>
