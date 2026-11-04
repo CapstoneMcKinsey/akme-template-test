@@ -1,4 +1,5 @@
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -7,12 +8,28 @@ from akme.project import Project, read_yaml, write_yaml
 from akme.tools import ontology_write
 
 ROOT = Path(__file__).resolve().parents[1]
+TEMPLATE_FILES = ("schema.ttl", "content.yml", "manifest.yml")
+
+
+def _template_ontology(target: Path) -> None:
+    """Copia o template de ontologia. Prefere a versao commitada (git HEAD) para que uma ontologia
+    em andamento na arvore de trabalho nao contamine os testes; sem git, copia a pasta como esta."""
+    target.mkdir(parents=True)
+    (target / "pending").mkdir()
+    for name in TEMPLATE_FILES:
+        try:
+            text = subprocess.run(["git", "show", f"HEAD:ontology/{name}"], cwd=ROOT, check=True,
+                                  capture_output=True, text=True, encoding="utf-8").stdout
+        except (OSError, subprocess.CalledProcessError):
+            shutil.copy(ROOT / "ontology" / name, target / name)
+            continue
+        (target / name).write_text(text, encoding="utf-8")
 
 
 @pytest.fixture
 def project(tmp_path: Path) -> Project:
     shutil.copytree(ROOT / "examples" / "local_demo", tmp_path / "data")
-    shutil.copytree(ROOT / "ontology", tmp_path / "ontology")
+    _template_ontology(tmp_path / "ontology")
     shutil.copy(ROOT / "examples" / "local_demo" / "questions.yml", tmp_path / "questions.yml")
     write_yaml(tmp_path / "akme.yml", {
         "project": "demo", "adapter": "local_folder",

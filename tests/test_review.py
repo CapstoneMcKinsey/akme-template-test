@@ -40,18 +40,29 @@ def test_batch_aborts_on_new_error_and_tolerates_preexisting(seeded):
     assert [e.id for e in ontology_write.list_pending(seeded)] == [bad.id]
 
 
-def test_apply_reviewed_skips_stage2_and_review_refuses_it(seeded):
-    from akme.project import write_yaml
-    from akme.tools.ontology_write import _pending_path
+def test_review_accepts_stage2_and_apply_reviewed_filters_by_stage(seeded):
     cls = ontology_write.propose_edit(seeded, "add_class", {"name": "Fornecedor", "label": "Fornecedor", "comment": "c"})
-    with pytest.raises(EditError, match="etapa 1: add_class"): ontology_write.review_edit(seeded, cls.id, "accept", "ana")
-    from akme.models import Review
-    cls.review = Review(decision="accept", reviewer="ana", reviewed_at="2026-10-30T00:00:00+00:00")
-    write_yaml(_pending_path(seeded, cls.id), cls.model_dump(mode="json"))  # revisao gravada por fora
+    with pytest.raises(EditError, match="nao aceita a chave"): ontology_write.review_edit(seeded, cls.id, "accept", "ana", edits={"name": "Outro"})
+    ontology_write.review_edit(seeded, cls.id, "accept", "ana", edits={"comment": "fornece produtos"})
     cq = ontology_write.propose_edit(seeded, "add_competency_question", CQ); ontology_write.review_edit(seeded, cq.id, "accept", "ana", edits={"priority": "low"})
-    out = ontology_write.apply_reviewed(seeded, "ana")
+    out = ontology_write.apply_reviewed(seeded, "ana", stage="requirements")
     assert [e.id for e in ontology_write.list_pending(seeded)] == [cls.id]
     assert out["summary"]["applied_types"] == {"add_competency_question": 1}
+    with pytest.raises(EditError, match="stage"): ontology_write.apply_reviewed(seeded, "ana", stage="tudo")
+    out = ontology_write.apply_reviewed(seeded, "ana")
+    assert out["summary"]["applied_types"] == {"add_class": 1} and out["held_by_gate"] == []
+    from akme.ontology import load_graph, classes
+    assert next(c for c in classes(load_graph(seeded.schema_path)) if c["name"] == "Fornecedor")["comment"] == "fornece produtos"
+
+
+def test_rejected_stage2_review_is_discarded_on_apply(seeded):
+    term = ontology_write.propose_edit(seeded, "add_term", {"name": "x", "class": "Cliente", "definition": "y"})
+    ontology_write.review_edit(seeded, term.id, "reject", "ana", reason="duplicado")
+    out = ontology_write.apply_reviewed(seeded, "ana", stage="ontology")
+    assert out["rejected"] and ontology_write.list_pending(seeded) == []
+    from akme.project import read_yaml
+    assert read_yaml(seeded.changelog_path)["entries"][-1]["status"] == "rejected"
+    assert all(t["name"] != "x" for t in load_content(seeded)["terms"])
 
 
 def test_accept_cq_without_status_defaults_to_approved_and_needs_priority(project):

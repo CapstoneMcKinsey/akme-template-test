@@ -37,3 +37,11 @@ def test_skill_guards_apply_reviewed_and_lists_requirement_checks():
     assert "`publish`, `apply_edit` e `apply_reviewed`" in skill
     for check in ("cq_reserved_without_answer", "cq_approved_without_priority", "cq_agent_without_source_evidence", "no_reserved_cq", "open_gap_or_divergence"):
         assert check in skill, check
+
+
+def test_skill_sends_the_human_to_the_page_not_the_file():
+    skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+    assert "open_review" in skill and "`stage`" in skill
+    assert "Aplicar decididas" in skill
+    assert "aponte o humano para `docs/index.html`" not in skill
+    assert "Etapa X de 6 concluida" in skill

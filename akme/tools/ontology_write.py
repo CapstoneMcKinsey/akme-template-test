@@ -9,8 +9,8 @@ import yaml
 from ..adapters import AdapterError
 from ..models import (
     ADDITIVITY, CONTENT_SECTION, CQ_STATUSES, CQ_TYPES, DIVERGENCE_DECISIONS, EVIDENCE_KINDS, GAP_DECISIONS,
-    METRIC_FIELDS, MULTIPLICITIES, ONTOLOGY_TYPES, PRIORITIES, REQUIRED_FIELDS, STAGE1_TYPES, Edit, EditType,
-    Review, now_iso,
+    APPLY_STAGES, METRIC_FIELDS, MULTIPLICITIES, ONTOLOGY_TYPES, PRIORITIES, REQUIRED_FIELDS, STAGE1_TYPES, Edit,
+    EditType, Review, now_iso,
 )
 from ..ontology import (
     add_class, add_relation, class_names, is_metric_class, load_content, load_graph, save_content, save_graph,
@@ -407,19 +407,32 @@ def reject_edit(project: Project, edit_id: str, rejected_by: str, reason: str = 
     return entry
 
 
-# chaves que o revisor pode editar, por tipo; demais tipos aceitam so chaves ja presentes no payload
+# chaves que o revisor pode editar antes de aceitar, por tipo. Nas edicoes da ontologia so entram
+# campos de texto: mudar domain, range, multiplicity, join, class ou expression exige nova proposta,
+# porque o `observed` e as checagens foram calculados para a proposta original.
 _REVIEW_KEYS = {
     EditType.add_competency_question: {"question", "type", "concepts", "evidence", "use_cases", "priority", "status", "answer"},
+    EditType.update_competency_question: set(),
+    EditType.remove_competency_question: set(),
     EditType.add_gap: {"decision", "note", "reason"},
     EditType.update_gap: {"decision", "note", "reason"},
     EditType.add_divergence: {"decision", "winner", "reason"},
     EditType.update_divergence: {"decision", "winner", "reason"},
+    EditType.add_use_case: {"name", "description", "actors", "flow"},
+    EditType.add_requirement: {"value"},
+    EditType.add_glossary: {"meaning", "convention"},
+    EditType.add_class: {"label", "comment"},
+    EditType.add_relation: {"label", "comment"},
+    EditType.add_term: {"definition", "synonyms"},
+    EditType.add_mapping: {"note"},
+    EditType.add_constraint: {"rule"},
+    EditType.add_precedence: {"reason"},
 }
 _REVIEW_CHOICES = {"type": CQ_TYPES, "status": CQ_STATUSES, "priority": PRIORITIES}
 
 
 def _check_review_edits(edit: Edit, edits: dict[str, Any]) -> None:
-    allowed = _REVIEW_KEYS.get(edit.type, set(edit.payload))
+    allowed = _REVIEW_KEYS.get(edit.type, set())
     for key, value in edits.items():
         if key == "id":
             raise EditError("edits nao pode alterar o id")
@@ -441,8 +454,6 @@ def review_edit(project: Project, edit_id: str, decision: str, reviewer: str,
     edit = _load_pending(project, edit_id)
     if not reviewer or not reviewer.strip():
         raise EditError("review_edit exige reviewer com o nome de quem revisou")
-    if edit.type not in STAGE1_TYPES:
-        raise EditError(f"revisao na aba so para edicoes da etapa 1: {edit.type.value}")
     _check_choice("decision", decision, ["accept", "reject"])
     if decision == "reject" and edit.type in (EditType.add_gap, EditType.add_divergence):
         alt = "drop" if edit.type == EditType.add_gap else "dismiss"
@@ -473,14 +484,25 @@ def _merge_review(edit: Edit) -> dict[str, Any]:
     return p
 
 
-def apply_reviewed(project: Project, approved_by: str) -> dict[str, Any]:
-    """Aplica em lote os pendentes da etapa 1 com review, em ordem de created_at."""
+def apply_reviewed(project: Project, approved_by: str, stage: str = "all") -> dict[str, Any]:
+    """Aplica em lote os pendentes com review, em ordem de created_at. `stage` limita o lote:
+    requirements (etapa 1), ontology (etapas 2 e 3) ou all. Edicoes da ontologia so entram com os
+    requisitos fechados; se o portao estiver ativo, elas ficam de fora e o resumo diz quantas."""
     if not approved_by or not approved_by.strip():
         raise EditError("apply_reviewed exige approved_by com o nome de quem aprovou")
+    if stage not in APPLY_STAGES:
+        raise EditError(f"stage invalido: {stage}. Opcoes: {list(APPLY_STAGES)}")
     from .batch import apply_batch
-    reviewed = sorted((e for e in list_pending(project) if e.review and e.type in STAGE1_TYPES),
+    wanted = {"requirements": STAGE1_TYPES, "ontology": ONTOLOGY_TYPES, "all": STAGE1_TYPES | ONTOLOGY_TYPES}[stage]
+    reviewed = sorted((e for e in list_pending(project) if e.review and e.type in wanted),
                       key=lambda e: (e.created_at, e.id))
-    return apply_batch(project, [e.id for e in reviewed], approved_by)
+    held = []
+    if any(e.type in ONTOLOGY_TYPES for e in reviewed) and requirements_status(project)["gate_active"]:
+        held = [e.id for e in reviewed if e.type in ONTOLOGY_TYPES]
+        reviewed = [e for e in reviewed if e.type not in ONTOLOGY_TYPES]
+    out = apply_batch(project, [e.id for e in reviewed], approved_by)
+    out["held_by_gate"] = held
+    return out
 
 
 def pending_summary(project: Project) -> str:

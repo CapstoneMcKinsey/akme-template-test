@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Akme: revisão e ontologia</title>
+<meta name="description" content="Caixa de entrada de decisões do consultor: propostas do agente em cada etapa, grafo da ontologia, cobertura e pitfalls do último validate.">
+<link rel="icon" href="brand/akme-icon.svg" type="image/svg+xml">
+<script>
+  // tema antes da primeira pintura: salvo pelo usuario, senao o do sistema
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem("akme-theme"); } catch (e) {}
+    var dark = saved ? saved === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+  })();
+</script>
+<link rel="stylesheet" href="akme.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar" aria-label="Navegação">
+    <div class="sidebar-head">
+      <a class="brand" href="#" aria-label="Akme">
+        <img class="light-only" src="brand/akme-symbol-light.svg" alt="" width="34" height="20">
+        <img class="dark-only" src="brand/akme-symbol-dark.svg" alt="" width="34" height="20">
+        <span>Akme</span>
+      </a>
+      <span class="label tertiary" id="sidebar-mode">revisão</span>
+    </div>
+    <div class="sidebar-body">
+      <section class="sidebar-section" aria-label="Etapas do fluxo">
+        <div class="group-label">Fluxo LOT</div>
+        <ol class="stepper" id="stepper"></ol>
+      </section>
+      <nav id="rv-nav" class="sidebar-section" aria-label="Fila de decisões" hidden></nav>
+      <div id="ont-nav" class="sidebar-section" hidden>
+        <div class="input-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input id="search" class="input" type="search" placeholder="Buscar classe, termo ou sigla" aria-label="Buscar classe, termo ou sigla">
+        </div>
+        <nav id="nav" aria-label="Hierarquia de classes"></nav>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="header">
+      <button class="btn btn-ghost btn-icon menu-btn" id="menu" aria-label="Abrir ou fechar a navegação" aria-controls="sidebar" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <span class="title" id="project-title">Akme</span>
+      <span class="badge badge-alt badge-sm mono" id="version"></span>
+      <nav class="tabs" id="tabs" role="tablist" aria-label="Vistas" hidden>
+        <button type="button" class="tab" id="tab-revisao" role="tab" aria-controls="view-revisao" aria-selected="true">Revisão <span class="badge" id="tab-revisao-count" hidden></span></button>
+        <button type="button" class="tab" id="tab-ontologia" role="tab" aria-controls="view-ontologia" aria-selected="false">Ontologia</button>
+      </nav>
+      <span class="spacer"></span>
+      <span class="stage-chip" id="stage-chip"></span>
+      <button class="btn btn-ghost btn-icon" id="theme" aria-label="Alternar tema claro e escuro">
+        <svg id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg id="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+      </button>
+    </header>
+
+    <main class="content" id="conteudo">
+      <div id="gate-banner" role="status" hidden></div>
+
+      <section id="view-revisao" role="tabpanel" aria-labelledby="tab-revisao" hidden></section>
+
+      <div id="view-ontologia" role="tabpanel" aria-labelledby="tab-ontologia" style="display:flex; flex-direction:column; gap:24px" hidden>
+        <section class="stats" id="stats" aria-label="Resumo"></section>
+        <section class="workspace">
+          <div class="card graph-card">
+            <div class="graph-head">
+              <div>
+                <h2 class="h2">Grafo da ontologia</h2>
+                <p class="p secondary">Mostra a classe escolhida e seus vizinhos diretos. Um clique numa classe mostra as informações dela; dois cliques centralizam o grafo nela. O selo +N abre os vizinhos sem sair do lugar.</p>
+              </div>
+              <div class="legend" aria-hidden="true">
+                <span><i></i> relação</span>
+                <span><i class="dashed"></i> subclasse</span>
+                <span><b></b> selecionado</span>
+              </div>
+            </div>
+            <div class="graph-bar">
+              <nav class="crumbs" id="crumbs" aria-label="Caminho da classe"></nav>
+              <div class="actions">
+                <div class="seg" id="layouts" role="group" aria-label="Forma do grafo"></div>
+                <button type="button" class="btn btn-outline btn-sm" id="graph-reset">Recolher</button>
+                <button type="button" class="btn btn-outline btn-sm" id="graph-all" aria-pressed="false">Ver tudo</button>
+              </div>
+            </div>
+            <div class="graph-wrap">
+              <svg class="graph" id="graph" role="img" aria-labelledby="graph-title"><title id="graph-title">Grafo de classes e relações da ontologia</title></svg>
+              <div class="graph-empty" id="graph-empty" hidden></div>
+            </div>
+          </div>
+          <aside class="card panel" id="panel" aria-live="polite"></aside>
+        </section>
+        <section class="summary" id="summary"></section>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="ontology.js"></script>
+<script src="graph.js"></script>
+<script src="review.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

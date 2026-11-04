@@ -1,6 +1,6 @@
-# Tokens de design do docs/index.html
+# Tokens de design da página (akme/static/akme.css)
 
-Origem: repositório do guia conceitual `capstone-insper/202602_MCKINSEY_DiagnosticEngineDataRequest_Docs`, clonado em 2026-10-27. O guia adotou o QuantumBlack Design System (QBDS, Apache 2.0) em 13/10/2026; a paleta Azure Mono em `docs/identity/akme-tokens.css` ficou como histórico e não é usada aqui. Fontes de verdade lidas: `styles/globals.css` (tema do QBDS instalado pelo registry), `app/globals.css`, `app/(guia)/layout.tsx`, `components/ui/{card,badge,table}.tsx`, `components/guide/{callout,diagrams/flow,diagrams/README}.tsx` e `DESIGN.md`.
+A fonte de verdade da página é `akme/static/` (HTML, `akme.css`, `app.js`, `graph.js`, `review.js`, `fonts/`, `brand/`); `akme export` copia tudo para `docs/`. Origem dos tokens: repositório do guia conceitual `capstone-insper/202602_MCKINSEY_DiagnosticEngineDataRequest_Docs`, clonado em 2026-10-27. O guia adotou o QuantumBlack Design System (QBDS, Apache 2.0) em 13/10/2026; a paleta Azure Mono em `docs/identity/akme-tokens.css` ficou como histórico e não é usada aqui. Fontes de verdade lidas: `styles/globals.css` (tema do QBDS instalado pelo registry), `app/globals.css`, `app/(guia)/layout.tsx`, `components/ui/{card,badge,table}.tsx`, `components/guide/{callout,diagrams/flow,diagrams/README}.tsx` e `DESIGN.md`.
 
 Regra do QBDS que o HTML segue: tokens semânticos sempre (`surface-*` para fundo de página, `fill-*` para conteúdo e componentes, `text-*` para texto, `border-*` para traços, `status-*` só para preenchimentos e bordas de estado). O acento QB marca apenas nós focais ou selecionados.
 
@@ -59,7 +59,7 @@ Opacidades de slate-900 (claro) e mist-50 (escuro): 6, 8, 10, 16, 24, 38, 50, 60
 
 ## Tipografia
 
-Famílias: Inter para tudo (títulos, corpo, interface), Roboto Mono para código e identificadores. O guia serve as fontes localmente via next/font; o HTML carrega do Google Fonts com fallback de sistema.
+Famílias: Inter para tudo (títulos, corpo, interface), Roboto Mono para código e identificadores. O guia serve as fontes localmente via next/font; a página serve os mesmos `.woff2` (subconjunto latin, licença OFL) de `akme/static/fonts/`, sem Google Fonts.
 
 | Papel | Classe QBDS | Tamanho / entrelinha | Peso | Tracking |
 |---|---|---|---|---|
@@ -85,7 +85,7 @@ Escala completa: 12, 14, 16, 20, 24, 32, 40, 48, 56 px. Corpo das páginas: 16 /
 
 ## Raio, sombras e movimento
 
-- Cantos retos em todos os componentes (tokens de raio do QBDS valem 0). Único raio: `round` = 9999px em badges, dots e marcadores circulares.
+- Cantos retos em todos os componentes (`--rad: 0`, como no QBDS). Único raio: `--rad-round` = 9999px em badges, dots e marcadores do stepper.
 - elevation-0: `0 1px 1px 0 shade-t, 0 0 1px 0 shade` (cartões). elevation-1: `0 2px 4px 1px shade-t-01, 0 1px 4px 0 shade-01`. elevation-2: `0 4px 8px 0 shade-t-02, 0 2px 4px -1px shade-02`. No claro, shade-t = slate-900 a 8% e shade = slate-900 a 38%; no escuro, slate-900 a 88%.
 - Camadas de estado: hover = 8% e pressed = 16% da cor de texto sobre o fundo.
 - Transições de 140 a 200 ms; desativadas com `prefers-reduced-motion`.
@@ -105,4 +105,4 @@ Do `flow.tsx` e do README dos diagramas: nós como cartões com ícone, rótulo 
 
 ## Regras editoriais
 
-Português do Brasil, sem travessão. Estados sempre com texto e ícone, nunca só com cor. Ícones do guia são Material Symbols Sharp; o HTML usa SVG inline de traço único para não depender da fonte de ícones.
+Português do Brasil, sem travessão. Estados sempre com texto e ícone, nunca só com cor. Ícones do guia são Material Symbols Sharp; a página usa SVG inline de traço único para não depender da fonte de ícones. O símbolo da marca vem de `public/brand/akme-symbol-{light,dark}.svg` do guia, copiado em `akme/static/brand/`.

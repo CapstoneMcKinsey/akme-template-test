@@ -22,3 +22,12 @@ data/*
 
 # mockups do brainstorming (superpowers)
 .superpowers/
+
+# copias da pagina geradas por akme export (fonte de verdade em akme/static/)
+docs/index.html
+docs/akme.css
+docs/app.js
+docs/graph.js
+docs/review.js
+docs/fonts/
+docs/brand/
