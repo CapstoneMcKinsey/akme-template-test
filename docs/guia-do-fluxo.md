@@ -1,8 +1,8 @@
 # AKME do zero: ontologia e camada semântica com LOT + NeOn
 
 Este guia explica o que o template faz, por que faz assim, e como usar de ponta a ponta num caso
-novo. Ele cobre o estado do template em 2026-10-30, depois da reconstrução da etapa de
-requisitos. O que ainda não está pronto está dito na última seção.
+novo. Ele cobre o estado do template em 2026-11-03, depois da reconstrução da etapa de
+requisitos (30/10) e da página de revisão como caixa de entrada de decisões (03/11). O que ainda não está pronto está dito na última seção.
 
 ## 1. O problema que o template resolve
 
@@ -61,7 +61,7 @@ O que entrou (desenho em `docs/superpowers/specs/2026-10-30-revisao-de-requisito
 | Bloco de revisão | A decisão do humano gravada dentro do próprio pendente: aceitar ou rejeitar, edições, prioridade, motivo, revisor, hora | `ontology/pending/*.yml` → `review` |
 | Aplicação em lote | `apply_reviewed` aplica tudo que tem revisão numa cópia temporária, roda `validate`, e só promove se não houver erro novo | `akme/tools/batch.py` |
 | Portão da etapa 1 | Enquanto a ontologia não tem classe de domínio, `propose_edit` de classe, relação, termo, mapping, restrição ou precedência é recusado até os requisitos fecharem | `requirements_status` |
-| Página de revisão | Aba **Revisão** no `docs/index.html`, com um cartão por item, editável quando servida por `akme review` | `docs/review.js`, `akme/review_server.py` |
+| Página de revisão | Caixa de entrada de decisões em qualquer etapa: uma proposta por vez, aceitar ou rejeitar, aplicar com nome. Servida por `akme review`; atualiza sozinha | `akme/static/`, `akme/review_server.py`, `akme/tools/review_view.py` |
 
 "Requisitos fechados" significa: há caso de uso (ou o motivo de não haver), nenhuma CQ ainda em
 `proposed`, nenhum pendente da etapa 1 sem decisão, ao menos uma CQ aprovada, nenhuma lacuna ou
@@ -104,43 +104,58 @@ No chat: "mapeie o domínio do cliente". O agente:
    agregação, tempo e estado, regras e restrições), cada uma com conceitos e evidência citada.
    Propõe também as **lacunas** e as **divergências** que encontrou. Tudo vira pendente; no chat
    aparece só a lista curta.
-4. **Pede que você rode** `uv run akme review`. Isso roda o `export`, sobe um servidor local em
-   `http://localhost:8765` e abre a página.
+4. **Abre a página de revisão** (`open_review`: roda o `export`, sobe o servidor local em
+   `http://127.0.0.1:8765` em segundo plano e abre o navegador) e diz a URL em uma linha. Se
+   preferir, você mesmo roda `uv run akme review`.
 
-Na página, aba **Revisão**:
+Na página (vista **Revisão**, a inicial):
 
+- A barra lateral mostra o **fluxo LOT** com a etapa atual, a **fila** (a decidir, decididas,
+  aplicadas) e os tipos de proposta. O cabeçalho diz "Etapa X de 6" e uma faixa no topo diz o
+  próximo passo.
 - Coloque seu nome em **Revisor** (sem ele, nada salva).
-- Em cada CQ: edite o texto se quiser, escolha **Aceitar** ou **Rejeitar** (com motivo), dê
-  **Prioridade**, marque **Ajuste** (vira exemplo para o agente) ou **Reservada** (vira gabarito do
-  teste; pede a resposta esperada). Crie CQs suas em **Nova CQ**.
-- Em cada lacuna: pedir o dado ao cliente, reformular, descartar ou deixar aberta.
-- Em cada divergência: qual fonte prevalece, são termos distintos, perguntar ao especialista,
-  descartar ou deixar aberta. "Prevalece" vira candidata a regra de precedência na etapa 3.
-- **Salvar decisões.** Grava em `ontology/pending/*.yml`. Nada foi aplicado ainda.
+- Uma proposta por vez, em um cartão grande: campos com rótulo em português, evidência com
+  "conferir nas fontes" e, nas relações, "o que o dado mostra" (nulos, órfãos, multiplicidade
+  observada e alerta de fanout). Uma barra de progresso no topo diz quantas faltam; Anterior e
+  Próxima embaixo do cartão. A barra lateral filtra a fila (a decidir, decididas, aplicadas) e o
+  tipo de proposta.
+- Em cada item: **Aceitar** ou **Rejeitar** (com motivo). Em texto, "Ajustar texto antes de
+  aceitar" abre só os campos editáveis (rótulo, comentário, definição, sinônimos). Em CQs, aceitar
+  pede **Prioridade** e **Uso da pergunta**: "Usar na construção" (vira exemplo para o agente) ou
+  "Guardar para o teste" (gabarito do eval; pede a resposta esperada). Crie CQs suas em
+  **Nova pergunta escrita pelo revisor**.
+- Em cada lacuna: pedir o dado ao cliente, reformular, descartar ou deixar em aberto.
+- Em cada divergência: qual fonte prevalece, são conceitos distintos, perguntar ao especialista,
+  descartar ou deixar em aberto. "Prevalece" vira candidata a regra de precedência na etapa 3.
+- Atalhos: setas percorrem as propostas, `a` aceita, `r` rejeita, `e` edita.
+- **Salvar decisões.** Grava o bloco `review` em `ontology/pending/*.yml`. Nada foi aplicado ainda.
+- **Aplicar decididas.** Pede o nome de quem aprova, roda o lote numa cópia com `validate` e só
+  promove se não surgir erro novo. Mostra o resumo e a etapa seguinte. Equivale a dizer "aplica"
+  no chat ou a `uv run akme apply --all-reviewed --approved-by SEU_NOME` na CLI.
+
+A fila atualiza sozinha: quando o agente propõe algo novo, o item aparece com um aviso; quando o
+agente aplica pelo chat, o item sai da fila. Rascunhos locais não se perdem.
 
 De volta ao chat: "revisei". O agente lê os pendentes e resume ("8 aceitas, 2 rejeitadas, 3
-editadas, 1 criada por você, 2 lacunas para o data request, 1 divergência com precedência").
-Você diz **"aplica"** com seu nome. Só então `apply_reviewed` grava em `content.yml`, espelha as
-reservadas em `validation/questions.yml` e registra tudo em `changelog.yml`. Se menos de cinco CQs
-foram aceitas, ele oferece uma segunda rodada. Pendentes criados enquanto o `apply_reviewed` está
-rodando se perdem: termine de salvar na página antes de dizer "aplica". Edições da etapa 2
-(classes, relações, termos) aparecem na página só para leitura, em "Outros (aprovar pelo chat)",
-e o `apply_reviewed` não as aplica.
+editadas, 1 criada por você, 2 lacunas para o data request, 1 divergência com precedência") e
+pede **"aplica"** com seu nome; se você já aplicou pela página, ele lê o `changelog.yml` e segue.
+`apply_reviewed` grava em `content.yml` e `schema.ttl`, espelha as reservadas em
+`validation/questions.yml` e registra tudo em `changelog.yml`. Se menos de cinco CQs foram aceitas,
+ele oferece uma segunda rodada. Termine de salvar na página antes de dizer "aplica".
 
-Sem o Claude Code, o mesmo caminho existe na CLI: `uv run akme pending` lista,
-`uv run akme apply --all-reviewed --approved-by SEU_NOME` aplica.
-
-Enquanto os requisitos não fecham, a página abre direto na Revisão, com uma faixa dizendo o que
-falta, e a aba Ontologia fica escondida. O agente também é barrado: qualquer tentativa de criar
-classe devolve "requisitos nao fechados: ..." com a lista.
+Enquanto os requisitos não fecham, a faixa da etapa 1 diz o que falta e o agente é barrado:
+qualquer tentativa de criar classe devolve "requisitos nao fechados: ..." com a lista.
 
 ### 4.3 Etapas 2 a 6 (sem mudança hoje além do portão)
 
 - **2. Conceitualizar.** O agente chama `requirements_status`; se fechado, lê o modelo atual e
   propõe classes, relações e termos a partir das CQs aprovadas, cada proposta ligada à CQ que a
-  motiva. Consulta a LOV (`search_registry`) para reuso. Você aprova no chat.
+  motiva. Consulta a LOV (`search_registry`) para reuso. Você decide na mesma página: cada
+  relação mostra a junção declarada e o que o dado mostra; classes e relações pendentes aparecem
+  tracejadas no grafo da vista Ontologia.
 - **3. Codificar.** Mappings para `tabela.coluna`, métricas com SQL, restrições e precedências
   (as divergências decididas na etapa 1 viram `add_precedence` aqui). `validate` antes de aplicar.
+  Também decididos na página.
 - **4. Avaliar.** `validate` (parse, referências, cobertura de colunas, pitfalls, e agora as regras
   de requisitos: reservada sem resposta, aprovada sem prioridade, lacuna em aberto) e `eval`
   (testes estruturais das reservadas; comparação com e sem ontologia via `--callable`).
@@ -159,26 +174,28 @@ classe devolve "requisitos nao fechados: ..." com a lista.
 | `ontology/pending/` | Propostas aguardando decisão, com o bloco `review` quando já revisadas |
 | `ontology/changelog.yml` | Quem propôs, quem aprovou, quando, com que evidência, e o antes e depois das alterações |
 | `validation/questions.yml` | CQs reservadas espelhadas automaticamente, com `expects` e `answer` |
-| `docs/index.html` + `docs/ontology.js` | A página; `akme export` ou `akme review` atualizam os dados |
+| `akme/static/` | A página (HTML, CSS, JS, fontes e marca); `akme export` copia para `docs/` e gera `docs/ontology.js` |
 
 ### 4.5 Ver a página
 
-- **Editável:** `uv run akme review` e abrir `http://localhost:8765`. Só aceita conexões da própria
-  máquina e só do próprio navegador (checa origem).
-- **Só leitura:** `uv run akme export` e abrir `docs/index.html` do disco. Ou servir a pasta com
-  `python3 -m http.server` dentro de `docs/`.
+- **Editável:** `uv run akme review` e abrir `http://127.0.0.1:8765`; `--background` sobe sem
+  prender o terminal e imprime a URL (é o que o agente usa via `open_review`). Só aceita conexões da
+  própria máquina e só do próprio navegador (checa origem).
+- **Só leitura:** `uv run akme export` e abrir `docs/index.html` do disco. Mostra tudo, mas não
+  decide nem aplica.
+- **Etapa atual:** `uv run akme stage` diz em que etapa das seis o projeto está e o próximo passo.
 
 ## 5. Demonstração em dois minutos
 
 ```bash
 uv run akme init --demo      # distribuidora de materiais de construção, dados em examples/local_demo
 uv run akme demo             # connect, profile, seed (caso de uso, CQs, lacuna, divergência, classes), validate, export
-uv run akme review           # abre a página: aba Ontologia com o grafo e aba Revisão com o já aplicado
+uv run akme review           # abre a página: Revisão com o já aplicado e Ontologia com o grafo
 ```
 
-A aba Revisão da demo não começa vazia: mostra o caso de uso, as CQs, a lacuna e a divergência já
-aplicados pelo seed, sem pendentes. Para ver pendentes, peça ao agente "proponha dez CQs novas para
-a demo" e abra a aba Revisão de novo.
+A Revisão da demo não começa com fila: mostra em "Aplicadas" o caso de uso, as CQs, a lacuna e a
+divergência já aplicados pelo seed. Para ver a fila, peça ao agente "proponha dez CQs novas para a
+demo": elas aparecem na página sem recarregar.
 
 ## 6. O que ainda não foi feito
 
@@ -190,7 +207,8 @@ O diagnóstico listou mais do que a etapa 1. Continuam em aberto, por ordem de p
 3. **Databricks como metric view**. A publicação Snowflake já sai com chaves primárias e `RELATIONSHIPS`
    a partir dos contratos de relação.
 4. **Edição e remoção** de classes, termos e mappings (hoje só CQs, lacunas e divergências têm
-   `update`/`remove`).
+   `update`/`remove`; na página, as propostas de classe, relação e termo aceitam ajuste de texto
+   antes de aceitar, mas domínio, range, multiplicidade e junção exigem nova proposta).
 5. **Reuso com substância**: ler a definição do termo na LOV e registrar alinhamentos.
 6. Raciocinador (HermiT) como portão de consistência; atributos e disjunção no modelo.
 

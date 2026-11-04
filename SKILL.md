@@ -11,13 +11,22 @@ Levar o consultor do primeiro contato com os dados do cliente ate uma camada sem
 
 ## Regras que nunca mudam
 
-1. **Nada entra na ontologia sem aprovacao explicita do humano.** Toda escrita passa por `propose_edit` (grava em `ontology/pending/`) e so vira ontologia com `apply_edit`, que exige o nome de quem aprovou. Nunca chame `apply_edit` sem o humano ter dito "aprovado" para aquela edicao especifica nesta conversa. `apply_reviewed` so pode ser chamado depois de voce mostrar o resumo das decisoes lidas em `list_pending` e o humano responder 'aplica' com o nome de quem aprova.
+1. **Nada entra na ontologia sem aprovacao explicita do humano.** Toda escrita passa por `propose_edit` (grava em `ontology/pending/`) e so vira ontologia com `apply_edit`, que exige o nome de quem aprovou. Nunca chame `apply_edit` sem o humano ter dito "aprovado" para aquela edicao especifica nesta conversa. `apply_reviewed` so pode ser chamado depois de voce mostrar o resumo das decisoes lidas em `list_pending` e o humano responder 'aplica' com o nome de quem aprova. O humano tambem pode aplicar pela propria pagina de revisao (botao "Aplicar decididas", que exige o nome e roda o mesmo lote validado): nesse caso `list_pending` volta vazio e o `changelog.yml` mostra quem aprovou; nao peca "aplica" de novo.
 2. **`validate` roda antes de todo `apply_edit`.** Se houver erro, mostre ao humano e proponha correcao em vez de aplicar.
 3. **Nunca responda de memoria sobre a ontologia.** Use `list_entities`, `list_relations`, `search_term`, `resolve_acronym`, `get_precedence`, `get_requirements` e `list_competency_questions` para saber o que existe.
 4. **Toda proposta carrega proveniencia.** Preencha `requirement_id` (a CQ que motiva) e `evidence` (documento, tabela, coluna ou conversa de origem). O `apply_edit` grava isso em `changelog.yml` e na secao `evidence` do `content.yml`.
 5. **`publish`, `apply_edit` e `apply_reviewed` sao acoes com aprovacao por chamada.** `publish` roda em dry-run por padrao; executar no alvo exige o humano confirmar na CLI.
 6. **As tools nao chamam LLM.** O que exige julgamento semantico (redigir definicoes, propor classes, interpretar relatorios) e trabalho seu, sempre apresentado como proposta.
 7. **Toda hipotese, ambiguidade ou conflito mostrado ao humano diz de onde veio.** Antes de apresentar, chame `find_in_sources` com o termo (siglas com `case_sensitive=true`) e cite cada ocorrencia relevante com o `path` devolvido, a pagina ou slide, ou a aba e a coluna, e um trecho curto entre aspas. Nunca cite de memoria. Se a tool nao encontrar o termo por extenso, diga isso e mostre onde ele aparece abreviado. Separe sempre o que esta escrito na fonte do que e hipotese sua. Toda CQ, lacuna e divergencia proposta carrega `evidence` com `kind: source` citando `path`, `locator` e `quote`; o que vem de conversa leva `kind: conversation`. Ver "Como apresentar ambiguidades".
+
+## A pagina de revisao e o vai e volta com o humano
+
+A pagina servida por `akme review` (127.0.0.1:8765) e a caixa de entrada de decisoes do consultor em qualquer etapa: cada pendente aparece com titulo legivel, evidencia, o que o dado mostra e dois botoes, aceitar ou rejeitar. Ela atualiza sozinha quando voce propoe algo novo e mostra a etapa atual das seis. Regras para voce:
+
+- **Em toda parada "Pare e pergunte" das etapas 1, 2 e 3**, depois de gravar as propostas, chame `open_review` (roda `export`, sobe a pagina em segundo plano se preciso e abre o navegador) e escreva uma linha fixa: "Revise em <url> (N itens a decidir). Quando terminar, diga `revisei`, ou aplique pela pagina." No chat mostre so a lista curta (titulo e tipo de cada proposta); o detalhe e a decisao ficam na pagina. Se `open_review` falhar, diga ao humano para rodar `uv run akme review`.
+- **Ao retomar**, leia `list_pending` e trate os tres casos: (a) ha pendentes com `review` e nao aplicados: resuma as decisoes e peca "aplica" com o nome de quem aprova, depois `apply_reviewed`; (b) nao ha pendentes e o `changelog.yml` registra aplicacoes novas: o humano aplicou pela pagina, leia o resultado e siga; (c) ha pendentes sem `review`: pergunte se prefere decidir no chat ("aprovado" ou "rejeitado" item a item) e use `apply_edit` ou `reject_edit`.
+- **No fim de cada etapa**, chame `stage` e termine a resposta com a frase que a pagina tambem mostra: "Etapa X de 6 concluida. Proximo passo: ...".
+- Nunca aponte o humano para o arquivo `docs/index.html`: aberto do disco a pagina fica so em modo leitura. Aponte sempre para a URL local.
 
 ## Preparacao
 
@@ -37,23 +46,23 @@ Cada etapa diz quais tools chamar, o que voce produz e onde parar para o humano 
 
 ### 1. Especificar (LOT: especificacao de requisitos)
 
-Tools: `connect`, `profile`, `read_document`, `find_in_sources`, `get_requirements`, `list_competency_questions`, `propose_edit` com `add_use_case`, `add_requirement`, `add_competency_question`, `add_gap`, `add_divergence`, `add_glossary`; `export`, `list_pending`, `requirements_status`, `apply_reviewed`.
+Tools: `connect`, `profile`, `read_document`, `find_in_sources`, `get_requirements`, `list_competency_questions`, `propose_edit` com `add_use_case`, `add_requirement`, `add_competency_question`, `add_gap`, `add_divergence`, `add_glossary`; `open_review`, `list_pending`, `requirements_status`, `apply_reviewed`, `stage`.
 
 1. Pergunte o caso de uso (ou constate que `get_requirements` ja traz um em `use_cases`; nesse caso nao pergunte de novo): nome, descricao, atores e fluxo. Proponha `add_use_case`. Se o humano disser que nao tem, registre o motivo com `add_requirement` no campo `no_use_case`, avise que as CQs sairao mais genericas e siga.
 2. Rode `profile`. Leia fontes, colunas, tipos, nulos, chaves candidatas e convencoes detectadas. O profile traz so um excerto de cada documento: para o conteudo completo, chame `read_document` sem `page` para ver o indice e depois pagina a pagina. Use `find_in_sources` nos termos que aparecerem. Cite arquivo e pagina na `evidence` (ex: `contratos/glossario.docx, pagina 3` ou `kickoff.pptx, slide 2`).
 3. Proponha proposito, escopo e usuarios (`add_requirement` com `field` purpose, scope ou users). Diferencie o que esta explicito nos documentos do que e hipotese sua.
 4. Proponha exatamente dez CQs (`add_competency_question`), distribuidas entre os seis tipos: `classificacao_hierarquia`, `relacao_entre_conceitos`, `atributos`, `quantidade_agregacao`, `tempo_estado`, `regras_restricoes`. O ideal e duas por tipo; se o dominio nao sustenta um tipo, diga qual e por que. Cada CQ leva `question`, `type`, `concepts` e `evidence` com ao menos um `{kind: source, path, locator, quote}`; `use_cases` e opcional. O `id` e o `status: proposed` o servidor preenche. Siga a regra do LOT: pergunta quando ha interrogacao de negocio, frase quando e fato, tabela quando e lista de atributos. Em seguida proponha as lacunas (`add_gap`: perguntas que o caso de uso sugere e os dados nao respondem) e as divergencias (`add_divergence`: fontes que discordam), cada uma com evidencia.
-5. Rode `export` e diga ao humano: "rode `akme review` e abra a aba Revisao". Mostre no chat so a lista curta (id, pergunta, tipo); o detalhe e a decisao ficam na aba.
-6. Pare. Quando o humano voltar, leia `list_pending` e resuma as decisoes (quantas CQs aceitas, rejeitadas, editadas e criadas; lacunas e divergencias decididas). Peca "aplica" com o nome de quem aprova. So depois chame `apply_reviewed` com esse nome.
+5. Chame `open_review` e diga ao humano, em uma linha, a URL e quantos itens esperam decisao. Mostre no chat so a lista curta (id, pergunta, tipo); o detalhe e a decisao ficam na pagina. Nao mande o humano rodar `akme review` nem abrir `docs/index.html`.
+6. Pare. Quando o humano voltar, leia `list_pending` e resuma as decisoes (quantas CQs aceitas, rejeitadas, editadas e criadas; lacunas e divergencias decididas). Peca "aplica" com o nome de quem aprova. So depois chame `apply_reviewed` com esse nome. Se o humano ja aplicou pela pagina, `list_pending` volta vazio: leia o `changelog.yml` e siga.
 7. Proponha o glossario (`add_glossary`) para siglas vistas em `profile.conventions.acronyms_found` e nos documentos. As entradas ficam pendentes e o humano decide na aba Revisao (ou diz "aprovado" no chat e voce chama `apply_edit`); a etapa so fecha depois que elas forem aplicadas. Se menos de cinco CQs foram aceitas, ofereca uma segunda rodada de ate dez, sem repetir as rejeitadas.
 
-**Pare e pergunte:** o humano decide na aba Revisao (claro, completo, sem ambiguidade, prioridade, quais CQs sao de ajuste e quais ficam reservadas para o teste). Nao transforme hipotese em regra. Mesmo depois do "aplica", a etapa so termina quando `requirements_status` diz `closed`.
+**Pare e pergunte:** o humano decide na pagina de revisao (claro, completo, sem ambiguidade, prioridade, quais CQs sao usadas na construcao e quais ficam guardadas para o teste). Nao transforme hipotese em regra. Mesmo depois do "aplica", a etapa so termina quando `requirements_status` diz `closed`.
 
 Saida: `use_cases`, CQs com status, `gaps`, `divergences`, `requirements` e `glossary` no `content.yml`; CQs reservadas espelhadas em `validation/questions.yml`. Se nao ha nenhuma reservada, diga ao humano: o eval nao testara pelo resultado; a etapa 4 fica so com verificacao formal.
 
 ### 2. Conceitualizar (LOT: implementacao, conceitualizacao e reuso)
 
-Tools: `requirements_status`, `list_entities`, `list_relations`, `search_term`, `search_registry`, `propose_edit` com `add_class`, `add_relation`, `add_term`.
+Tools: `requirements_status`, `list_entities`, `list_relations`, `search_term`, `search_registry`, `propose_edit` com `add_class`, `add_relation`, `add_term`; `open_review`, `list_pending`, `apply_reviewed`, `stage`.
 
 0. Chame `requirements_status`; se `closed` for falso, volte a etapa 1 e mostre `missing` ao humano. Enquanto estiver aberto e a ontologia nao tiver classe de dominio, `propose_edit` recusa classes, relacoes, termos, mappings, constraints e precedencias.
 1. Leia o modelo atual com `list_entities` e `list_relations` antes de propor qualquer coisa.
@@ -64,19 +73,19 @@ Tools: `requirements_status`, `list_entities`, `list_relations`, `search_term`, 
 3. Quando a conceitualizacao estiver estavel, consulte `search_registry` para termos reutilizaveis na LOV. Compare definicao com definicao, nao nome com nome. Se nao houver rede, registre que o reuso ficou pendente.
 4. Sinalize termos ambiguos, sobreposicoes e CQs ainda sem classe que as atenda.
 
-**Pare e pergunte:** o humano aprova o modelo conceitual e as decisoes de reuso. Nomes de classe em PascalCase, de relacao em lowerCamelCase.
+**Pare e pergunte:** chame `open_review` e aponte a URL; o humano aceita, ajusta ou rejeita cada classe, relacao e termo na pagina (ela mostra o `observed` e os alertas de fanout e orfaos). Ao voltar, resuma `list_pending` e peca "aplica", ou constate que ja foi aplicado pela pagina. Nomes de classe em PascalCase, de relacao em lowerCamelCase.
 
 Saida: classes e relacoes em `schema.ttl`, termos em `content.yml`.
 
 ### 3. Codificar (LOT: implementacao, codificacao)
 
-Tools: `propose_edit` com `add_mapping`, `add_constraint`, `add_precedence`; `validate`; `apply_edit`.
+Tools: `propose_edit` com `add_mapping`, `add_constraint`, `add_precedence`; `validate`; `open_review`, `list_pending`, `apply_reviewed`, `apply_edit`, `stage`.
 
 1. Para cada termo, proponha o mapping para `tabela.coluna` do `profile`. Metricas levam `role: metric` e `expression` SQL explicita; nao existe `SUM` implicito. Uma metrica no grao da fonte do lado `one` de uma relacao nao pode ser somada depois de juntar com o lado `many` (fanout): o `publish` registra isso em `do_not_sum_after_join_with`.
 2. Proponha `add_constraint` para regras implicitas achadas nos documentos (ex: faturamento so com status FATURADO) e `add_precedence` quando duas fontes divergem sobre o mesmo conceito, dizendo qual prevalece e por que.
 3. Rode `validate`. Corrija o que for erro antes de pedir aprovacao.
 
-**Pare e pergunte:** apresente as edicoes pendentes em lote, com evidencia de cada uma. O humano aprova, rejeita (`reject_edit` com motivo) ou pede ajuste.
+**Pare e pergunte:** chame `open_review` e aponte a URL; os mappings, restricoes e precedencias aparecem na pagina com a evidencia de cada um. O humano aceita, rejeita com motivo ou pede ajuste. Ao voltar, `apply_reviewed` com o nome de quem aprova, ou constate que ja foi aplicado pela pagina.
 
 Saida: `mappings`, `constraints` e `precedence` aplicados; `changelog.yml` atualizado.
 
@@ -93,9 +102,9 @@ Tools: `validate` (com `oops=true` quando houver rede), `eval`, `export`.
 
 ### 5. Publicar (LOT: publicacao)
 
-Tools: `export`, `publish`.
+Tools: `export`, `open_review`, `publish`, `stage`.
 
-1. Rode `export` e aponte o humano para `docs/index.html` (grafo, termos, cobertura e pitfalls).
+1. Chame `open_review` e aponte o humano para a URL local, aba Ontologia (grafo, termos, cobertura e pitfalls).
 2. Rode `publish --target <alvo>` em dry-run e mostre o artefato gerado (`docs/publish/`). Alvos: `snowflake` (semantic view com `PRIMARY KEY` e `RELATIONSHIPS` tirados dos contratos de relacao, e comments), `databricks` (comments do Unity Catalog), `yaml` (camada generica), `rdf` (YARRRML e, com o extra `rdf`, materializacao via Morph-KGC).
 3. Se o humano quiser versao nova, use `--release patch|minor|major`.
 4. Documentacao em HTML (Widoco) e checklist FAIR (FOOPS!) ficam fora do template; cite os comandos de `docs/research/oeg-upm.md` quando o cliente pedir.
@@ -137,7 +146,7 @@ Ambiguidades que encontrei:
    Pergunta: concorda?
 ```
 
-Use o mesmo conteudo na `evidence` do `propose_edit` (ex: `{kind: source, path: data/regulamento.docx, locator: pagina 2, quote: "carga horaria total de 360 h"}`), para que a origem fique gravada no `changelog.yml` e no `content.yml`.
+Use o mesmo conteudo na `evidence` do `propose_edit` (ex: `{kind: source, path: data/regulamento.docx, locator: pagina 2, quote: "carga horaria total de 360 h"}`), para que a origem fique gravada no `changelog.yml` e no `content.yml`. Quando houver mais de uma evidencia para a mesma proposta, grave uma lista JSON (`[{...}, {...}]`), nunca objetos concatenados com `;`.
 
 ## Como interpretar o validate
 

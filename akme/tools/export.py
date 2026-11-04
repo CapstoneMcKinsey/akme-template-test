@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+from pathlib import Path
 from typing import Any
 
 from ..adapters import AdapterError, load_adapter
@@ -28,6 +30,8 @@ def build_export(project: Project) -> dict[str, Any]:
     manifest = load_manifest(project)
     from .ontology_write import list_pending
     from .requirements import requirements_status
+    from .review_view import present
+    from .stage import current_stage
 
     validation = read_yaml(project.validation_path) if project.validation_path.exists() else None
     summary = None
@@ -62,8 +66,9 @@ def build_export(project: Project) -> dict[str, Any]:
         "glossary": content["glossary"],
         "precedence": content["precedence"],
         "requirements": content["requirements"],
-        "pending": [e.model_dump(mode="json") for e in list_pending(project)],
+        "pending": [e.model_dump(mode="json") | {"view": present(e)} for e in list_pending(project)],
         "requirements_status": requirements_status(project),
+        "stage": current_stage(project),
         "validation": summary,
     }
 
@@ -118,9 +123,33 @@ def to_yarrrml(project: Project, data: dict[str, Any]) -> tuple[dict[str, Any], 
     return {"prefixes": {"akme": base}, "mappings": mappings}, skipped
 
 
+PAGE_DIR = Path(__file__).resolve().parent.parent / "static"
+PAGE_FILES = ("index.html", "akme.css", "app.js", "graph.js", "review.js")
+PAGE_DIRS = ("fonts", "brand")
+
+
+def sync_page(project: Project) -> list[str]:
+    """Copia a pagina (HTML, CSS, JS, fontes e marca) do pacote para docs/ quando falta ou mudou.
+    A fonte de verdade e akme/static/; docs/ fica com a copia que o navegador abre."""
+    copied: list[str] = []
+    targets: list[tuple[Path, Path]] = [(PAGE_DIR / f, project.docs_dir / f) for f in PAGE_FILES]
+    for d in PAGE_DIRS:
+        targets += [(src, project.docs_dir / d / src.name) for src in sorted((PAGE_DIR / d).glob("*")) if src.is_file()]
+    for src, dst in targets:
+        if not src.exists():
+            continue
+        if dst.exists() and dst.stat().st_size == src.stat().st_size and dst.read_bytes() == src.read_bytes():
+            continue
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, dst)
+        copied.append(dst.name)
+    return copied
+
+
 def export(project: Project) -> dict[str, Any]:
     data = build_export(project)
     project.docs_dir.mkdir(parents=True, exist_ok=True)
+    page = sync_page(project)
     json_path = project.docs_dir / "ontology.json"
     json_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     js_path = project.docs_dir / "ontology.js"
@@ -131,4 +160,5 @@ def export(project: Project) -> dict[str, Any]:
     yarrrml, skipped = to_yarrrml(project, data)
     write_yaml(yarrrml_path, yarrrml)
     return {"json": str(json_path), "mermaid": str(mmd_path), "yarrrml": str(yarrrml_path), "yarrrml_skipped": skipped,
+            "page": str(project.docs_dir / "index.html"), "page_updated": page,
             "classes": len(data["classes"]), "relations": len(data["relations"]), "terms": len(data["terms"])}

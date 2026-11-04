@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <title>Akme</title>
+  <style>
+    :root { color: #000000; }
+    @media (prefers-color-scheme: dark) { :root { color: #FFFFFF; } }
+  </style>
+  <g transform="translate(0 26)">
+    <path d="M12 64 64 12 116 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <g fill="currentColor">
+      <rect x="2" y="54" width="20" height="20" rx="3"/>
+      <rect x="54" y="2" width="20" height="20" rx="3"/>
+    </g>
+    <rect x="106" y="54" width="20" height="20" rx="3" fill="#00A9F4"/>
+  </g>
+</svg>

@@ -170,10 +170,11 @@ def pending() -> None:
 @app.command()
 def apply(edit_id: str = typer.Argument(None, help="id da edicao pendente"),
           approved_by: str = typer.Option(..., help="nome de quem aprovou"),
-          all_reviewed: bool = typer.Option(False, "--all-reviewed", help="aplica em lote todos os pendentes revisados")) -> None:
+          all_reviewed: bool = typer.Option(False, "--all-reviewed", help="aplica em lote todos os pendentes revisados"),
+          stage: str = typer.Option("all", help="com --all-reviewed: requirements, ontology ou all")) -> None:
     """Aplica uma edicao pendente (ou, com --all-reviewed, todas as revisadas) apos aprovacao humana."""
     if all_reviewed:
-        _dump(write_tool.apply_reviewed(_project(), approved_by))
+        _dump(write_tool.apply_reviewed(_project(), approved_by, stage))
     elif edit_id:
         _dump(write_tool.apply_edit(_project(), edit_id, approved_by))
     else:
@@ -195,19 +196,30 @@ def demo() -> None:
     report = validate_tool.validate(project)
     console.print(f"validate: {'ok' if report.ok else 'erros'}, {len(report.pitfalls)} pitfalls, cobertura {report.coverage.get('ratio')}")
     _dump(export_tool.export(project))
-    console.print("abra docs/index.html para ver o grafo")
+    console.print("rode 'uv run akme review' e abra a URL local para ver a pagina")
 
 
 @app.command()
 def review(
     port: int = typer.Option(8765, "--port", help="Porta local"),
     open_browser: bool = typer.Option(True, "--open/--no-open", help="Abrir o navegador"),
+    background: bool = typer.Option(False, "--background", help="Sobe o servidor em segundo plano (ou reaproveita o que ja estiver no ar) e imprime a URL"),
 ) -> None:
-    """Sobe a pagina local de revisao de requisitos."""
-    from .review_server import serve as serve_review
+    """Sobe a pagina local de revisao: decisoes sobre as propostas do agente em qualquer etapa."""
+    from .review_server import ensure_running, serve as serve_review
     project = _project()
     export_tool.export(project)
+    if background:
+        console.print(ensure_running(project, port, open_browser))
+        return
     serve_review(project, port, open_browser)
+
+
+@app.command()
+def stage() -> None:
+    """Diz em que etapa das seis o projeto esta, o que falta e o proximo passo."""
+    from .tools.stage import current_stage
+    _dump(current_stage(_project()))
 
 
 @app.command()

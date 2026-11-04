@@ -133,9 +133,33 @@ def apply_edit(edit_id: str = "", approved_by: str = "", edit_ids: list[str] | N
 
 
 @mcp.tool()
-def apply_reviewed(approved_by: str) -> dict[str, Any]:
-    """Aplica em lote todos os pendentes revisados e devolve o resumo. Mostre o resumo e espere o "aplica" do humano antes."""
-    return write_tool.apply_reviewed(project(), approved_by)
+def apply_reviewed(approved_by: str, stage: str = "all") -> dict[str, Any]:
+    """Aplica em lote os pendentes revisados na pagina e devolve o resumo. stage: requirements (etapa 1),
+    ontology (etapas 2 e 3) ou all. Mostre o resumo e espere o "aplica" do humano antes."""
+    return write_tool.apply_reviewed(project(), approved_by, stage)
+
+
+@mcp.tool()
+def open_review(port: int = 8765, open_browser: bool = True) -> dict[str, Any]:
+    """Roda export, garante a pagina de revisao servindo em 127.0.0.1 (sobe em segundo plano se preciso) e
+    abre o navegador. Devolve a URL, a etapa atual e quantos pendentes esperam decisao. Chame em toda parada
+    em que o humano precisa decidir propostas; diga a URL ao humano em uma linha."""
+    from .review_server import ensure_running
+    from .tools.stage import current_stage
+    p = project()
+    export_tool.export(p)
+    url = ensure_running(p, port, open_browser)
+    st = current_stage(p)
+    return {"url": url, "stage": st["label"], "next_step": st["next_step"], "undecided": st["undecided"],
+            "pending": st["counts"]["pending"]}
+
+
+@mcp.tool()
+def stage() -> dict[str, Any]:
+    """Em que etapa das seis o projeto esta, o que falta para fechar a atual e o proximo passo. Use para
+    terminar cada resposta de fim de etapa com "Etapa X de 6 concluida. Proximo passo: ..."."""
+    from .tools.stage import current_stage
+    return current_stage(project())
 
 
 @mcp.tool()

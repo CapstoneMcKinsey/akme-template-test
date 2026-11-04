@@ -50,6 +50,13 @@ ONTOLOGY_TYPES = frozenset({
     EditType.add_mapping, EditType.add_constraint, EditType.add_precedence,
 })
 
+# Etapa do fluxo (LOT) em que cada tipo e decidido: 1 especificar, 2 conceitualizar, 3 codificar
+EDIT_STAGE: dict[EditType, int] = {t: 1 for t in STAGE1_TYPES} | {
+    EditType.add_class: 2, EditType.add_relation: 2, EditType.add_term: 2,
+    EditType.add_mapping: 3, EditType.add_constraint: 3, EditType.add_precedence: 3,
+}
+APPLY_STAGES = ("requirements", "ontology", "all")
+
 
 CONTENT_SECTION = {
     EditType.add_term: "terms",

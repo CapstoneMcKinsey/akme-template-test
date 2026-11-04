@@ -16,9 +16,13 @@ uv run akme init --demo
 uv run akme demo
 ```
 
-Depois abra `docs/index.html`. Para um caso real, coloque os arquivos do cliente em `data/` (o git ignora o conteudo dessa pasta) e rode `uv run akme init` sem `--demo`. Os passos individuais sao `akme connect`, `akme profile`, `akme validate`, `akme eval`, `akme export`, `akme review` (aba Revisao editavel em localhost) e `akme publish --target snowflake` (dry-run por padrao).
+```bash
+uv run akme review
+```
 
-Na etapa 1 o agente pergunta o caso de uso, propoe dez competency questions (mais lacunas e divergencias, sempre com evidencia) e roda `akme export`. Voce roda `akme review`, decide cada item na aba Revisao e volta ao chat para dizer "aplica" com o seu nome; so entao o agente chama `apply_reviewed` (ou, na CLI, `akme apply --all-reviewed --approved-by NOME`). Enquanto os requisitos nao estiverem fechados, a ontologia nao e criada.
+A pagina abre em `http://127.0.0.1:8765` (nunca abra o `docs/index.html` do disco: fica so em modo leitura). Para um caso real, coloque os arquivos do cliente em `data/` (o git ignora o conteudo dessa pasta) e rode `uv run akme init` sem `--demo`. Os passos individuais sao `akme connect`, `akme profile`, `akme validate`, `akme eval`, `akme export`, `akme review` (pagina de decisoes em localhost; `--background` sobe e devolve a URL), `akme stage` (etapa atual e proximo passo) e `akme publish --target snowflake` (dry-run por padrao).
+
+O agente propoe; voce decide na pagina. Na etapa 1 ele pergunta o caso de uso, propoe dez competency questions (mais lacunas e divergencias, sempre com evidencia), abre a pagina de revisao (`open_review`) e diz a URL. Nas etapas 2 e 3 o mesmo vale para classes, relacoes, termos, mappings, restricoes e precedencias: cada proposta aparece com evidencia e com o que o dado mostra, e voce aceita, ajusta ou rejeita. Nada entra na ontologia ate voce aplicar, com o seu nome: pelo botao "Aplicar decididas" da pagina, dizendo "aplica" no chat (o agente chama `apply_reviewed`) ou na CLI (`akme apply --all-reviewed --approved-by NOME`). A pagina atualiza sozinha quando o agente propoe algo e mostra a etapa atual das seis. Enquanto os requisitos nao estiverem fechados, a ontologia nao e criada.
 
 ## Como adicionar um adapter
 
